@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from notes_vault.backup import BackupRepository, MANIFEST, git
-from notes_vault.models import AppError, Snapshot
-from notes_vault.providers import write_export
+from notesvault.backup import BackupRepository, MANIFEST, git
+from notesvault.models import AppError, Snapshot
+from notesvault.providers import write_export
 
 
 def note(stage, note_id="one", title="A note", text="original", attachments=None):
@@ -98,7 +98,7 @@ def test_attachment_change_and_unicode_paths(tmp_path):
 
 
 def test_commit_failure_restores_files_and_index(tmp_path, monkeypatch):
-    import notes_vault.backup as backup
+    import notesvault.backup as backup
     repo = BackupRepository(tmp_path / "backup")
     original = note(tmp_path / "stage")
     apply(repo, [original])

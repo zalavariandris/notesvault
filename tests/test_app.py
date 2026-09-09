@@ -1,7 +1,7 @@
 from textual.widgets import Button, Input
 
-from notes_vault.app import NotesApp, SetupScreen
-from notes_vault.config import ConfigStore
+from notesvault.app import NotesVaultApp, SetupScreen
+from notesvault.config import ConfigStore
 
 
 async def wait_for_backup(app, pilot):
@@ -13,7 +13,7 @@ async def wait_for_backup(app, pilot):
 
 
 async def test_demo_dashboard_fetch_and_repeat(tmp_path):
-    app = NotesApp(ConfigStore(tmp_path), demo=True)
+    app = NotesVaultApp(ConfigStore(tmp_path), demo=True)
     async with app.run_test(size=(110, 40)) as pilot:
         await pilot.click("#fetch")
         await wait_for_backup(app, pilot)
@@ -35,7 +35,7 @@ async def test_demo_dashboard_fetch_and_repeat(tmp_path):
 
 
 async def test_first_launch_setup_and_cancel(tmp_path):
-    app = NotesApp(ConfigStore(tmp_path))
+    app = NotesVaultApp(ConfigStore(tmp_path))
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
         assert isinstance(app.screen, SetupScreen)
@@ -45,8 +45,8 @@ async def test_first_launch_setup_and_cancel(tmp_path):
 
 
 async def test_saved_session_two_factor_and_logout(tmp_path):
-    from notes_vault.app import CodeScreen
-    from notes_vault.config import Settings
+    from notesvault.app import CodeScreen
+    from notesvault.config import Settings
     class Secrets:
         values = {"icloud:synthetic@example.invalid": "synthetic-password"}
         def get(self, key):
@@ -67,7 +67,7 @@ async def test_saved_session_two_factor_and_logout(tmp_path):
     store = ConfigStore(tmp_path)
     store.save(Settings(apple_id="synthetic@example.invalid", backup_folder=str(tmp_path / "backup")))
     secrets = Secrets()
-    app = NotesApp(store, secrets=secrets)
+    app = NotesVaultApp(store, secrets=secrets)
     app.provider = Provider()
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause(0.2)
@@ -86,7 +86,7 @@ async def test_saved_session_two_factor_and_logout(tmp_path):
 
 async def test_schedule_starts_fetch_without_a_click(tmp_path):
     from datetime import datetime, timedelta
-    app = NotesApp(ConfigStore(tmp_path), demo=True)
+    app = NotesVaultApp(ConfigStore(tmp_path), demo=True)
     async with app.run_test(size=(100, 40)) as pilot:
         app.next_fetch = datetime.now() - timedelta(seconds=1)
         app.tick()
@@ -95,7 +95,7 @@ async def test_schedule_starts_fetch_without_a_click(tmp_path):
 
 
 async def test_primary_action_visible_in_small_terminal(tmp_path):
-    app = NotesApp(ConfigStore(tmp_path), demo=True)
+    app = NotesVaultApp(ConfigStore(tmp_path), demo=True)
     async with app.run_test(size=(80, 24)) as pilot:
         assert await pilot.click("#fetch")
         await wait_for_backup(app, pilot)

@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "notes_vault"
+name = "notesvault"
 version = "0.1.0"
 description = "A terminal app for iCloud Notes backups with local Git history"
 readme = "README.md"
@@ -18,11 +18,11 @@ dev = ["pytest>=9,<10", "pytest-asyncio>=1,<2", "build>=1.3", "hatchling>=1.27"]
 exe = ["pyinstaller>=6.16,<7"]
 
 [project.scripts]
-notes-vault = "notes_vault.__main__:main"
+notesvault = "notesvault.__main__:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/notes_vault"]
+packages = ["src/notesvault"]

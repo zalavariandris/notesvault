@@ -1,4 +1,9 @@
-﻿# Notes Vault
+﻿# TODO immediatelly:
+- [x] make sure 'notesvault' naming is consistent everywhere.
+- [x] create a setup.bat file
+
+
+# Notes Vault
 
 ## Goal
 
@@ -46,6 +51,7 @@ removing backups. Prevent overlapping fetches.
 - Python 3.12+, Textual dashboard, PyiCloud 2.7.0 Notes adapter, and system Git.
 - Run `.venv/Scripts/python.exe -m pytest`; try `--demo` for synthetic data.
 - See README.md for setup, exports, limitations, and Windows executable builds.
+- On Windows, run `setup.bat` with uv and Git on PATH to install and check the app.
 - Current exports preserve text, metadata, and downloadable attachments. Rich
   formatting, locked notes, and separate shared zones are not fully supported.
 - Scheduling runs only while the terminal app is open; `--once` supports external schedulers.

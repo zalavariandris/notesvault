@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from notes_vault.models import AppError
-from notes_vault.providers import ICloudProvider
+from notesvault.models import AppError
+from notesvault.providers import ICloudProvider
 
 
 class Notes:

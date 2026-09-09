@@ -1,17 +1,17 @@
 import pytest
 
-from notes_vault.config import Settings
-from notes_vault.models import AppError
-from notes_vault.providers import DemoProvider
-from notes_vault.service import run_backup
+from notesvault.config import Settings
+from notesvault.models import AppError
+from notesvault.providers import DemoProvider
+from notesvault.service import run_backup
 
 
 def test_push_failure_keeps_local_commit(tmp_path, monkeypatch):
     from types import SimpleNamespace
-    from notes_vault.backup import git
+    from notesvault.backup import git
     def failed_push(*args):
         raise AppError("simulated push failure")
-    monkeypatch.setattr("notes_vault.service.push_repository", failed_push)
+    monkeypatch.setattr("notesvault.service.push_repository", failed_push)
     settings = Settings(backup_folder=str(tmp_path / "backup"), github_repo="owner/repo")
     result = run_backup(DemoProvider(), settings, SimpleNamespace(get=lambda _: "token"),
                         tmp_path / "staging", lambda _: None)

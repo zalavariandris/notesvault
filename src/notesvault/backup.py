@@ -74,7 +74,7 @@ class BackupRepository:
     def locked(self):
         self.initialize()
         try:
-            with FileLock(self.root / ".git" / "notes_vault.lock", timeout=0):
+            with FileLock(self.root / ".git" / "notesvault.lock", timeout=0):
                 yield self
         except Timeout as exc:
             raise AppError("Another backup is running for this folder.") from exc
@@ -205,7 +205,7 @@ class BackupRepository:
             pathspec = b"\0".join(name.encode("utf-8") for name in affected) + b"\0"
             git(self.root, "add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul", input=pathspec)
             timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-            git(self.root, "-c", "user.name=Notes Vault", "-c", "user.email=backup@notes_vault.local",
+            git(self.root, "-c", "user.name=Notes Vault", "-c", "user.email=backup@notesvault.local",
                 "-c", "commit.gpgsign=false", "commit", "--only", "--pathspec-from-file=-", "--pathspec-file-nul",
                 "-m", f"Back up Apple Notes ({timestamp})", input=pathspec)
             committed = True

@@ -7,16 +7,24 @@ GitHub publishing is optional. The app never edits your notes in iCloud.
 
 Requires Python 3.12+ and Git on PATH. From this project folder:
 
+On Windows with uv installed, run `.\setup.bat`.
+The script creates `.venv` if needed, installs the app and development dependencies,
+and checks runtime dependencies. Alternatively, set up manually:
+
 ```powershell
 uv venv
 uv pip install -e ".[dev]"
-.venv\Scripts\notes-vault.exe
+.venv\Scripts\notesvault.exe
 ```
+
+After installation, `.venv\Scripts\python.exe launcher.py` also starts the app,
+including from your IDE. The package lives under `src/notesvault`, so running the
+launcher requires the editable install above. Rerun setup after a package rename.
 
 Try the dashboard without an account:
 
 ```powershell
-.venv\Scripts\notes-vault.exe --demo
+.venv\Scripts\notesvault.exe --demo
 ```
 
 Demo notes and Git history live in a temporary folder removed when the app exits.
@@ -35,7 +43,7 @@ Demo notes and Git history live in a temporary folder removed when the app exits
    publishes an existing backup without downloading notes again. Quit with `q`.
 
 Automatic fetching runs only while the terminal app is open. Set the interval to
-0 for manual backups. For an external scheduler, use `notes-vault --once`
+0 for manual backups. For an external scheduler, use `notesvault --once`
 after connecting in the dashboard; expired sessions require interactive reconnection.
 
 ## Export and recovery
@@ -91,8 +99,8 @@ Create a standalone Windows console executable on Windows:
 
 ```powershell
 uv pip install -e ".[exe]"
-.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm notes-vault.spec
+.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm notesvault.spec
 ```
 
-Output: `dist/notes-vault.exe`. Keep this a console executable: the UI runs
+Output: `dist/notesvault.exe`. Keep this a console executable: the UI runs
 inside a terminal. The executable still requires Git on PATH.
