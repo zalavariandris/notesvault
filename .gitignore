@@ -1,0 +1,42 @@
+# Secrets and local environment configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Private note exports, authentication state, caches, and logs
+/data/
+/exports/
+/backups/
+/sessions/
+/credentials/
+/logs/
+*.log
+.cache/
+
+# Dependencies and generated builds (stack is not yet selected)
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+/build/
+/dist/
+/out/
+/target/
+coverage/
+.coverage
+*.egg-info/
+
+# Local editor and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
