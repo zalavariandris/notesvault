@@ -30,6 +30,8 @@ class SetupScreen(ModalScreen[dict | None]):
             yield Label("1 · Connect iCloud")
             yield Input(value=self.settings.apple_id, placeholder="Apple Account email", id="apple-id", disabled=self.demo)
             yield Input(placeholder="Password · leave blank to use saved credential", password=True, id="password", disabled=self.demo)
+            yield Button("Save & sign in via browser", id="browser-login", disabled=self.demo)
+            yield Static("Enter your email and backup folder before signing in. Complete Apple login and trust the browser. Close its window to cancel.", classes="muted")
             yield Label("2 · Choose a local backup folder")
             yield Input(value=self.settings.backup_folder, placeholder="C:\\Users\\you\\Documents\\NotesBackup", id="folder")
             yield Label("3 · GitHub · optional, leave empty to skip")
@@ -47,19 +49,33 @@ class SetupScreen(ModalScreen[dict | None]):
     def action_cancel(self):
         self.dismiss(None)
 
+    @on(Button.Pressed, "#browser-login")
+    def browser_login(self):
+        self.submit(browser=True)
+
     @on(Button.Pressed, "#save")
     def save(self):
+        self.submit()
+
+    def submit(self, browser=False):
         values = {key: self.query_one(f"#{key}", Input).value.strip()
                   for key in ("apple-id", "folder", "repo", "interval", "token")}
         values["password"] = self.query_one("#password", Input).value
+        values["auth-method"] = "browser" if browser else ("password" if values["password"] else self.settings.auth_method)
+        values["browser-login"] = browser
         try:
+            if browser and not values["apple-id"]:
+                raise ValueError("Enter the Apple Account email you will use in the browser.")
             if not values["folder"]:
                 raise ValueError("Choose a local backup folder.")
             minutes = int(values["interval"])
             if not 0 <= minutes <= 10080:
                 raise ValueError("Choose an interval between 0 and 10080 minutes.")
         except ValueError as exc:
-            self.query_one("#form-error", Static).update(str(exc))
+            error = self.query_one("#form-error", Static)
+            error.update(str(exc))
+            self.notify(str(exc), severity="error")
+            self.call_after_refresh(error.scroll_visible, animate=False)
             return
         self.query_one("#password", Input).value = ""
         self.query_one("#token", Input).value = ""
@@ -217,6 +233,11 @@ class NotesVaultApp(App):
         if not self.start_operation():
             return
         try:
+            if self.settings.auth_method == "browser":
+                self.activity("Restoring iCloud browser session...")
+                restored = await asyncio.to_thread(self.provider.restore_session, self.settings.apple_id)
+                self.activity("iCloud connected." if restored else "Browser session expired or unavailable. Open Settings to sign in again.")
+                return
             password = await asyncio.to_thread(self.secrets.get, f"icloud:{self.settings.apple_id}")
             if password:
                 self.activity("Reconnecting iCloud…")
@@ -277,9 +298,19 @@ class NotesVaultApp(App):
                     await asyncio.to_thread(self.provider.logout)
                     await asyncio.to_thread(self.secrets.delete, f"icloud:{old_account}")
                 self.settings.apple_id = account
+                self.settings.auth_method = values.get("auth-method", "password")
             self.store.save(self.settings)
             self.activity("Settings saved.")
-            if account and not self.demo:
+            if account and not self.demo and self.settings.auth_method == "browser":
+                if values.get("browser-login"):
+                    self.activity("Sign in on iCloud.com in the browser window and choose Trust. Close the window to cancel.")
+                    await asyncio.to_thread(self.provider.login_browser, account)
+                    await asyncio.to_thread(self.secrets.delete, f"icloud:{account}")
+                    self.activity("iCloud connected through the browser. Fetch now to back up your notes.")
+                elif not self.provider.connected:
+                    restored = await asyncio.to_thread(self.provider.restore_session, account)
+                    self.activity("iCloud connected." if restored else "Open Settings and choose browser sign-in to reconnect.")
+            elif account and not self.demo:
                 password = values["password"] or await asyncio.to_thread(self.secrets.get, f"icloud:{account}")
                 if password:
                     self.activity("Connecting iCloud…")

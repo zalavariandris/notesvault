@@ -90,6 +90,56 @@ class ICloudProvider:
             self.api = None
             raise AppError("iCloud sign-in failed. Check credentials, iCloud web access, and any pending Apple terms.") from exc
 
+    def restore_session(self, account: str) -> bool:
+        from pyicloud import PyiCloudService
+        self.api = None
+        self.account = account.strip().lower()
+        api = PyiCloudService(self.account,
+            cookie_directory=str(self.session_directory / stable_id(self.account)),
+            with_family=False, accept_terms=False, authenticate=False)
+        if not api.session.data.get("session_token"):
+            return False
+        try:
+            api.authenticate()
+            self._check_browser_api(api)
+        except Exception:
+            return False
+        self.api = api
+        return True
+
+    def _check_browser_api(self, api):
+        signed_in = api.data.get("dsInfo", {}).get("appleId", "")
+        if signed_in.strip().lower() != self.account:
+            raise AppError("The iCloud session belongs to a different account. Reconnect in Settings.")
+        if api.requires_2fa or api.requires_2sa or not api.is_trusted_session:
+            raise AppError("Complete verification and Trust this browser on iCloud.com, then retry.")
+        api.notes
+
+    def login_browser(self, account: str) -> None:
+        from pyicloud import PyiCloudService
+        from .browser_auth import sign_in
+        self.api = None
+        self.account = account.strip().lower()
+        session = sign_in(self.account)
+        api = PyiCloudService(self.account,
+            cookie_directory=str(self.session_directory / stable_id(self.account)),
+            with_family=False, accept_terms=False, authenticate=False)
+        try:
+            api.session.clear_persistence(remove_files=True)
+            api.session.data.update(session_token=session.token,
+                account_country=session.country, trust_token=session.trust_token)
+            for cookie in session.cookies:
+                api.session.cookies.set(cookie["name"], cookie["value"],
+                    domain=cookie["domain"], path=cookie["path"],
+                    secure=cookie.get("secure", True),
+                    expires=int(cookie["expires"]) if cookie.get("expires", -1) > 0 else None)
+            api.authenticate()
+            self._check_browser_api(api)
+        except Exception:
+            api.session.clear_persistence(remove_files=True)
+            raise AppError("Could not use the browser session for Notes. Retry or use password sign-in.") from None
+        self.api = api
+
     def verify(self, code: str) -> None:
         try:
             if self.api is None or not self.api.validate_2fa_code(code.strip()):
@@ -102,6 +152,11 @@ class ICloudProvider:
             raise AppError("Could not verify iCloud. Reconnect and request a new code.") from exc
 
     def logout(self):
+        if self.api is None and self.account:
+            from pyicloud import PyiCloudService
+            self.api = PyiCloudService(self.account,
+                cookie_directory=str(self.session_directory / stable_id(self.account)),
+                with_family=False, accept_terms=False, authenticate=False)
         try:
             if self.api:
                 # Clear this app's local session even if the remote logout fails.

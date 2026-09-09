@@ -1,9 +1,7 @@
-﻿# TODO immediatelly:
-- [x] make sure 'notesvault' naming is consistent everywhere.
-- [x] create a setup.bat file
+﻿# Notes Vault
 
-
-# Notes Vault
+## TODO:
+- [ ] add iCloud authentication through the browser
 
 ## Goal
 

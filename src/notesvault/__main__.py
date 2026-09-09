@@ -53,8 +53,12 @@ def main():
             provider = ICloudProvider(store.directory / "sessions")
             if not settings.apple_id:
                 raise AppError("Run the dashboard first to connect iCloud and choose a backup folder.")
-            password = secrets.get(f"icloud:{settings.apple_id}")
-            if not password or not provider.login(settings.apple_id, password):
+            if settings.auth_method == "browser":
+                ready = provider.restore_session(settings.apple_id)
+            else:
+                password = secrets.get(f"icloud:{settings.apple_id}")
+                ready = bool(password) and provider.login(settings.apple_id, password)
+            if not ready:
                 raise AppError("Reconnect iCloud in the dashboard before running --once.")
         result = run_backup(provider, settings, secrets, store.directory / "staging", print)
         settings.last_backup = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

@@ -1,106 +1,101 @@
-# Apple Notes Vault
+﻿# Notes Vault
 
-A Python terminal dashboard that exports iCloud Notes to a local Git repository.
-GitHub publishing is optional. The app never edits your notes in iCloud.
+A terminal dashboard that backs up iCloud Notes to a local Git repository.
+Publishing to a private GitHub repository is optional. iCloud notes are never modified.
+
+## Development setup
+
+Requires Python 3.12+, uv, and Git on PATH. In the project folder, run:
+
+```powershell
+uv sync --extra dev
+```
+
+This creates `.venv` and installs the package in editable mode with development
+ dependencies. Rerun after moving or renaming the project folder.
 
 ## Run
 
-Requires Python 3.12+ and Git on PATH. From this project folder:
-
-On Windows with uv installed, run `.\setup.bat`.
-The script creates `.venv` if needed, installs the app and development dependencies,
-and checks runtime dependencies. Alternatively, set up manually:
+From the project folder:
 
 ```powershell
-uv venv
-uv pip install -e ".[dev]"
-.venv\Scripts\notesvault.exe
+.venv\Scripts\python.exe -m notesvault
 ```
 
-After installation, `.venv\Scripts\python.exe launcher.py` also starts the app,
-including from your IDE. The package lives under `src/notesvault`, so running the
-launcher requires the editable install above. Rerun setup after a package rename.
-
-Try the dashboard without an account:
+Or launch through the script:
 
 ```powershell
-.venv\Scripts\notesvault.exe --demo
+.venv\Scripts\python.exe launcher.py
 ```
 
-Demo notes and Git history live in a temporary folder removed when the app exits.
-`--demo --once` exercises a complete local backup without the UI or credentials.
-`--check` verifies runtime imports and Git availability without accessing an account.
+With `.venv` activated, the equivalent commands are `python -m notesvault`,
+`python launcher.py`, or `notesvault`. In your IDE, select `.venv\Scripts\python.exe`.
 
-## Use
+Add `--demo` to try synthetic notes without an account, `--demo --once` to test a
+single backup, or `--check` to verify runtime imports, Git, and credential storage.
+Demo backups are temporary and removed on exit.
 
-1. Open **Settings** (`s`), enter your Apple Account and password, and choose a
-   separate backup folder. Credentials are saved in the OS credential store.
-2. Leave GitHub empty for local backups, or supply `owner/repository` and a
-   fine-grained token with repository Contents read/write access to a private repo.
-   Use an empty remote initially; conflicting remote history requires manual reconciliation.
-3. Complete Apple's verification-code prompt, then select **Fetch now** (`f`).
-4. Review note counts, local commit status, and optional push status. **Retry push**
-   publishes an existing backup without downloading notes again. Quit with `q`.
+## Build a Windows executable
 
-Automatic fetching runs only while the terminal app is open. Set the interval to
-0 for manual backups. For an external scheduler, use `notesvault --once`
-after connecting in the dashboard; expired sessions require interactive reconnection.
-
-## Export and recovery
-
-Notes are saved as readable `.md` text with `.json` metadata under `notes/`.
-Original downloadable attachments are stored under `attachments/` and linked from
-the note. Filenames include a stable hash of the iCloud ID. Folder names and IDs
-are retained, but nested folder hierarchy is flattened in this version.
-
-Each changed backup creates a local Git commit. Unchanged backups create no commit.
-Deleted files remain in earlier commits; use `git log --all -- notes` to browse
-history, then `git show <commit>:<path>` to read an earlier version. Export recovered
-content outside the managed backup before the next fetch.
-
-Local edits, staged changes, and incomplete exports block destructive replacement.
-Skipped notes retain their previous backups and defer all deletions. Downloads
-finish in temporary staging before local files change. GitHub push failures do not
-undo local commits; pushes never force overwrite remote history.
-
-## Current limitations
-
-- Uses [PyiCloud 2.7.0](https://github.com/timlaing/pyicloud#notes), an unofficial
-  integration with iCloud web services. Live account access needs verification on
-  your account; Apple may change these interfaces.
-- Plain text and available original attachments are exported; rich formatting,
-  drawings, tables, and other embedded objects are not guaranteed to round-trip.
-- Locked notes and attachments without an original download URL are skipped.
-  The provider scans the library's Notes zone; separate shared zones, on-device
-  notes, and notes in other accounts are not discovered.
-- Code-based 2FA is supported. Hardware security keys and legacy two-step
-  authentication are not yet implemented. Accept Apple terms in iCloud itself.
-- Deletions require an uninterrupted full scan with an unchanged source cursor.
-  A changing library requires retrying the fetch.
-- Git must be installed separately. Windows is the initial target.
-
-## Configuration and development
-
-Settings and iCloud sessions live in the per-user `NotesVault` data directory
-(on Windows, normally `%LOCALAPPDATA%\NotesVault`). Sessions contain sensitive
-authentication data and are never stored in the backup repository. `--data-dir`
-overrides this location. Passwords and tokens use OS credential storage, never
-plaintext keyring fallbacks. Logout clears the app's saved credential/session.
-
-`.env` is optional and ignored by Git. It supplies initial Apple Account, local
-folder, and optional GitHub repository defaults; use the UI for secrets.
+Run on Windows:
 
 ```powershell
-.venv\Scripts\python.exe -m pytest
-.venv\Scripts\python.exe -m build --wheel --no-isolation
-```
-
-Create a standalone Windows console executable on Windows:
-
-```powershell
-uv pip install -e ".[exe]"
+uv sync --extra dev --extra exe --extra browser
 .venv\Scripts\python.exe -m PyInstaller --clean --noconfirm notesvault.spec
 ```
 
-Output: `dist/notesvault.exe`. Keep this a console executable: the UI runs
-inside a terminal. The executable still requires Git on PATH.
+Output: `dist\notesvault.exe`. Run it in a terminal; Git must still be on PATH.
+
+## Use
+
+1. Open **Settings** (`s`), connect your Apple Account, complete 2FA, and choose a
+   backup folder separate from this source repository.
+2. Optionally enter a private GitHub `owner/repository` and a token with repository
+   Contents read/write permission. Start with an empty remote.
+3. Select **Fetch now** (`f`). Review the result and use **Retry push** if needed.
+   Quit with `q`.
+
+Automatic fetching runs while the app is open; set the interval to `0` for manual
+backups. Use `--once` with an external scheduler after connecting in the dashboard.
+Expired sessions require reconnection.
+
+## Browser sign-in (experimental)
+
+```powershell
+uv sync --extra dev --extra browser
+```
+
+Install Microsoft Edge or Google Chrome, or run
+`.venv\Scripts\python.exe -m playwright install chromium`.
+In **Settings**, enter your Apple Account email and backup folder, then choose
+**Save & sign in via browser**. Complete login and 2FA on iCloud.com and choose
+**Trust**. Close the browser to cancel; sign-in expires after five minutes.
+
+The app opens a separate browser session, without using your existing browser
+profile. It saves the iCloud session for reconnecting and `--once`, without saving
+your Apple password. Disconnect clears the app's saved session. Expired sessions
+require browser sign-in again. This unofficial session handoff needs live-account
+verification; password sign-in remains available. China mainland endpoints are
+not supported by this browser flow. Executable users also need Edge or Chrome.
+
+## Backups and limitations
+
+- Exports text to `notes/*.md`, metadata to JSON, and downloadable attachments to
+  `attachments/`. Filenames include stable ID hashes; folder hierarchy is flattened.
+- Changes are committed locally. Local edits and incomplete fetches block destructive
+  replacement; skipped notes defer deletions. Push failures preserve local backups.
+- Browse earlier versions with `git log --all -- notes` and
+  `git show <commit>:<path>`. Restore files outside the managed backup folder.
+- Uses unofficial PyiCloud 2.7.0; live-account verification remains open. Rich formatting,
+  locked notes, separate shared zones, and on-device notes are not fully supported.
+  Code-based 2FA is supported; hardware security keys and legacy two-step auth are not.
+
+Settings and sessions use the per-user `NotesVault` data directory (`--data-dir`
+overrides it). Passwords and tokens use OS credential storage. Optional `.env`
+defaults must not contain secrets or be committed.
+
+## Tests
+
+```powershell
+.venv\Scripts\python.exe -m pytest
+```

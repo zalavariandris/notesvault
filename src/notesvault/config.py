@@ -11,6 +11,7 @@ from .models import AppError
 @dataclass
 class Settings:
     apple_id: str = ""
+    auth_method: str = "password"
     backup_folder: str = ""
     github_repo: str = ""
     interval_minutes: int = 30
@@ -40,6 +41,8 @@ class ConfigStore:
             if any(not isinstance(getattr(settings, key), str) for key in (
                 "apple_id", "backup_folder", "github_repo", "last_result", "last_backup"
             )):
+                raise ValueError()
+            if settings.auth_method not in {"password", "browser"}:
                 raise ValueError()
             return settings
         except (ValueError, TypeError) as exc:
