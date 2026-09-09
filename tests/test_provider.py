@@ -7,6 +7,27 @@ from notesvault.models import AppError
 from notesvault.providers import ICloudProvider
 
 
+def test_frontmatter_preserves_metadata_and_body(tmp_path):
+    import json
+    from notesvault.providers import write_export
+
+    title = 'A "title": # tag\n---\nUnicode \u2601'
+    exported = write_export(tmp_path, "001", title, "# Body\r\n\r\nText", "Notes", "folder", None, [])
+    assert len(exported.files) == 1
+    path = next(iter(exported.files.values()))
+    assert path.suffix == ".md"
+    header, body = path.read_text(encoding="utf-8")[4:].split("\n---\n\n", 1)
+    metadata = {key: json.loads(value) for key, value in
+                (line.split(": ", 1) for line in header.splitlines())}
+    assert metadata == {
+        "id": "001", "title": title, "folder": "Notes", "folder_id": "folder",
+        "modified_at": None,
+        "format": "plain text in Markdown; rich formatting is not preserved",
+    }
+    assert body == "# Body\n\nText\n"
+    assert not list(tmp_path.rglob("*.json"))
+
+
 class Notes:
     def sync_cursor(self):
         return "stable"

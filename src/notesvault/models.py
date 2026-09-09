@@ -20,6 +20,7 @@ class Snapshot:
     complete: bool = True
     skipped: int = 0
     warnings: list[str] = field(default_factory=list)
+    cursor: str | None = None
 
 
 @dataclass

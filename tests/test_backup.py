@@ -28,9 +28,28 @@ def test_backup_repeat_rename_delete_and_history(tmp_path):
     assert apply(repo, [renamed]).updated == 1
     original_md = next(name for name in original.files if name.endswith(".md"))
     assert not (repo.root / original_md).exists()
-    assert git(repo.root, "show", f"{head.decode().strip()}:{original_md}").stdout == b"original\n"
+    assert git(repo.root, "show", f"{head.decode().strip()}:{original_md}").stdout == original.files[original_md].read_bytes()
     assert apply(repo, []).deleted == 1
     assert git(repo.root, "status", "--porcelain").stdout == b""
+
+
+def test_legacy_sidecar_migrates_and_remains_in_history(tmp_path):
+    repo = BackupRepository(tmp_path / "backup")
+    original = note(tmp_path / "legacy")
+    md = next(iter(original.files))
+    original.files[md].write_text("original\n", encoding="utf-8")
+    sidecar = str(Path(md).with_suffix(".json")).replace("\\", "/")
+    source = tmp_path / "legacy" / sidecar
+    source.write_text('{"id": "one"}\n', encoding="utf-8")
+    original.files[sidecar] = source
+    apply(repo, [original])
+    head = git(repo.root, "rev-parse", "HEAD").stdout.decode().strip()
+    updated = note(tmp_path / "new")
+    assert apply(repo, [updated]).updated == 1
+    assert not (repo.root / sidecar).exists()
+    assert (repo.root / md).read_text(encoding="utf-8").startswith("---\n")
+    assert git(repo.root, "show", f"{head}:{sidecar}").stdout == source.read_bytes()
+    assert apply(repo, [updated]).commit == "No changes"
 
 
 @pytest.mark.parametrize("complete,skipped", [(False, 0), (True, 1)])

@@ -1,7 +1,7 @@
 from PyInstaller.utils.hooks import collect_all
 
 datas, binaries, hiddenimports = [], [], []
-for package in ("textual", "pyicloud", "keyring", "platformdirs", "fido2", "playwright"):
+for package in ("edifice", "qasync", "pyicloud", "keyring", "platformdirs", "fido2"):
     package_datas, package_binaries, package_imports = collect_all(package)
     datas += package_datas
     binaries += package_binaries
