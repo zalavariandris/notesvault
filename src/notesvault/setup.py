@@ -11,7 +11,6 @@ class AccountSetup:
         self._password = None
 
     def login(self, account, password):
-        print(f"Attempting login for account: {account} with {password}")
         account = account.strip().lower()
         if not account:
             raise AppError("Enter your Apple Account email.")
@@ -23,10 +22,10 @@ class AccountSetup:
         if old and old != account:
             self.provider.logout()
         self.account = account
-        if not self.provider.login(account, password):
-            self._password = password
-            return False
+        ready = self.provider.login(account, password)
         self._password = password
+        if not ready:
+            return False
         self._save()
         return True
 

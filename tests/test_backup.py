@@ -1,11 +1,10 @@
-import subprocess
 from pathlib import Path
 
 import pytest
 
 from notesvault.backup import BackupRepository, MANIFEST, git
 from notesvault.models import AppError, Snapshot
-from notesvault.providers import write_export
+from notesvault.providers.utils import write_export
 
 
 def note(stage, note_id="one", title="A note", text="original", attachments=None):
@@ -134,7 +133,7 @@ def test_commit_failure_restores_files_and_index(tmp_path, monkeypatch):
     assert git(repo.root, "status", "--porcelain").stdout == b""
 
 
-@pytest.mark.parametrize("path", ["../outside", "notes/../../outside", "/absolute", "notes\\escape", "notes/a:stream", ".git/config"])
+@pytest.mark.parametrize("path", ["", ".", "../outside", "notes/../../outside", "/absolute", "notes\\escape", "notes/a:stream", ".git/config"])
 def test_unsafe_paths_rejected(tmp_path, path):
     with pytest.raises(AppError):
         BackupRepository(tmp_path).path(path)

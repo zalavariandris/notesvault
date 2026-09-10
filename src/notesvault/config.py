@@ -8,11 +8,10 @@ from platformdirs import user_data_path
 from .models import AppError
 
 
-@dataclass
+@dataclass(frozen=True)
 class Settings:
     apple_id: str = ""
     backup_folder: str = ""
-    github_repo: str = ""
     interval_minutes: int = 30
     last_result: str = "No backups yet"
     last_backup: str = "Never"
@@ -26,22 +25,26 @@ class ConfigStore:
 
     def load(self) -> Settings:
         if not self.path.exists():
-            owner, repo = os.getenv("GITHUB_REPO_OWNER", ""), os.getenv("GITHUB_REPO_NAME", "")
             return Settings(
                 apple_id=os.getenv("ICLOUD_APPLE_ID", ""),
                 backup_folder=os.getenv("LOCAL_EXPORT_DIR", ""),
-                github_repo=f"{owner}/{repo}" if owner and repo else "",
             )
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
-            # Older settings included an authentication selector.
+            # Discard retired options while preserving existing local backups.
             if isinstance(data, dict):
                 data.pop("auth_method", None)
+                data.pop("github_repo", None)
+                if isinstance(data.get("last_result"), str):
+                    data["last_result"] = "\n".join(
+                        line for line in data["last_result"].splitlines()
+                        if not line.startswith("GitHub:")
+                    )
             settings = Settings(**data)
             if not isinstance(settings.interval_minutes, int) or not 0 <= settings.interval_minutes <= 10080:
                 raise ValueError()
             if any(not isinstance(getattr(settings, key), str) for key in (
-                "apple_id", "backup_folder", "github_repo", "last_result", "last_backup"
+                "apple_id", "backup_folder", "last_result", "last_backup"
             )):
                 raise ValueError()
             return settings

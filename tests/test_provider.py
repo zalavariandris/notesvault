@@ -9,7 +9,7 @@ from notesvault.providers import ICloudProvider
 
 def test_frontmatter_preserves_metadata_and_body(tmp_path):
     import json
-    from notesvault.providers import write_export
+    from notesvault.providers.utils import write_export
 
     title = 'A "title": # tag\n---\nUnicode \u2601'
     exported = write_export(tmp_path, "001", title, "# Body\r\n\r\nText", "Notes", "folder", None, [])

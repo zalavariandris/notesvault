@@ -6,6 +6,30 @@ Outstanding work is tracked in [todo.md](todo.md).
 
 ## Unreleased
 
+- Removed GitHub publishing, its account form and tests, and publishing status
+  from backup results. Existing settings discard retired options on save while
+  preserving local backup configuration and history. Previously stored GitHub
+  tokens remain unused in OS storage; existing Git remotes are unchanged.
+- Split task management into a Qt-independent application controller and a small
+  Qt signal/timer adapter. One named task prevents overlapping work; completion
+  context belongs to that task, and only successful setup operations resume a
+  pending fetch. Settings and dashboard snapshots are immutable.
+- Added a Tasks viewer and automatic saving of folder/interval edits after a
+  typing pause. Invalid settings preserve saved values. Fixed the native folder
+  picker reference and restored saved-account login, verification, cancellation,
+  and disconnect controls inside the iCloud card.
+- Removed an unused account form, stale imports, obsolete UI interaction tests,
+  pytest-asyncio, and credential-printing debug output. Repaired demo exports and
+  retained migration, backup recovery, and authentication logic coverage.
+- Shared local backup result formatting between the CLI and dashboard; `--once`
+  loads no desktop modules. Empty and dot backup paths now fail with a safe error.
+- Declared Rich as a runtime dependency because PyiCloud 2.7.0's Notes renderer
+  imports it without the CLI extra. Authentication remains in the GUI. Rerun
+  `uv sync --extra dev` to refresh dependencies.
+- Verified the refactor and second review with 47 passing logic tests, the runtime
+  and dependency lock checks, a one-shot demo backup, and synthetic desktop fetch
+  and automatic-save smoke checks. Live iCloud verification remains outstanding.
+
 - Reviewed and retained `EXPORT_VERSION` for cache invalidation when export content
   or support changes. Documented when to increment it and repaired the regression
   test's outdated patch target. All five cache service tests pass; no migration

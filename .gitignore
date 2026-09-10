@@ -15,8 +15,7 @@
 *.log
 .cache/
 
-# Dependencies and generated builds (stack is not yet selected)
-node_modules/
+# Dependencies and generated builds
 .venv/
 venv/
 __pycache__/
@@ -26,8 +25,6 @@ __pycache__/
 .ruff_cache/
 /build/
 /dist/
-/out/
-/target/
 coverage/
 .coverage
 *.egg-info/

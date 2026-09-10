@@ -1,7 +1,7 @@
 from pathlib import Path
-from urllib.parse import quote
 
-from ..models import AppError, ExportedNote, Snapshot
+from ..models import Snapshot
+from .utils import write_export
 
 class DemoProvider:
     connected = True

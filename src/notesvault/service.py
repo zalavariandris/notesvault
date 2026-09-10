@@ -4,7 +4,6 @@ from tempfile import TemporaryDirectory
 from typing import Callable
 
 from .backup import BackupRepository, MANIFEST, digest, file_digest
-from .github import push_repository
 from .models import AppError, ExportedNote
 from .providers import ICloudProvider, utils
 
@@ -39,9 +38,9 @@ def save_fetch_cache(repository, snapshot):
     temporary.replace(path)
 
 
-def run_backup(provider, settings, secret_store, staging_root: Path, progress: Callable[[], None]):
+def run_backup(provider, settings, staging_root: Path, progress: Callable[[str], None]):
     if not settings.backup_folder:
-        raise AppError("Choose a backup folder in Settings first.")
+        raise AppError("Choose a backup folder in the Disk card first.")
     repository = BackupRepository(Path(settings.backup_folder))
     staging_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     with repository.locked():
@@ -54,13 +53,4 @@ def run_backup(provider, settings, secret_store, staging_root: Path, progress: C
                 save_fetch_cache(repository, snapshot)
             except OSError:
                 result.warnings.append("Local backup saved; download cache could not be saved. The next fetch may download all notes.")
-        if settings.github_repo:
-            progress("Publishing to GitHub…")
-            try:
-                token = secret_store.get("github")
-                if not token:
-                    raise AppError("GitHub token is missing. Reconnect in Settings.")
-                result.push = push_repository(repository.root, settings.github_repo, token)
-            except AppError as exc:
-                result.push = str(exc)
     return result

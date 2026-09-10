@@ -6,17 +6,11 @@ from notesvault.providers import DemoProvider
 from notesvault.service import run_backup
 
 
-def test_push_failure_keeps_local_commit(tmp_path, monkeypatch):
-    from types import SimpleNamespace
+def test_demo_backup_commits_locally_and_cleans_staging(tmp_path):
     from notesvault.backup import git
-    def failed_push(*args):
-        raise AppError("simulated push failure")
-    monkeypatch.setattr("notesvault.service.push_repository", failed_push)
-    settings = Settings(backup_folder=str(tmp_path / "backup"), github_repo="owner/repo")
-    result = run_backup(DemoProvider(), settings, SimpleNamespace(get=lambda _: "token"),
-                        tmp_path / "staging", lambda _: None)
+    settings = Settings(backup_folder=str(tmp_path / "backup"))
+    result = run_backup(DemoProvider(), settings, tmp_path / "staging", lambda _: None)
     assert result.added == 3
-    assert result.push == "simulated push failure"
     assert git(tmp_path / "backup", "rev-parse", "--verify", "HEAD").returncode == 0
     assert not list((tmp_path / "staging").iterdir())
 
@@ -55,7 +49,7 @@ def test_unchanged_cloud_reuses_files_but_rejects_local_edits(tmp_path):
     provider, notes = cloud_provider(tmp_path)
     settings = Settings(backup_folder=str(tmp_path / "backup"))
     def run():
-        return run_backup(provider, settings, None, tmp_path / "staging", lambda _: None)
+        return run_backup(provider, settings, tmp_path / "staging", lambda _: None)
     assert run().added == 1
     head = git(tmp_path / "backup", "rev-parse", "HEAD").stdout
     assert run().commit == "No changes"
@@ -72,7 +66,7 @@ def test_changed_cursor_failure_does_not_advance_cache(tmp_path):
     provider, notes = cloud_provider(tmp_path)
     settings = Settings(backup_folder=str(tmp_path / "backup"))
     def run():
-        return run_backup(provider, settings, None, tmp_path / "staging", lambda _: None)
+        return run_backup(provider, settings, tmp_path / "staging", lambda _: None)
     run()
     cache = tmp_path / "backup" / ".git" / "notesvault-fetch.json"
     original = cache.read_bytes()
@@ -92,7 +86,7 @@ def test_cache_fallback(tmp_path, monkeypatch, invalidation):
     provider, notes = cloud_provider(tmp_path)
     settings = Settings(backup_folder=str(tmp_path / "backup"))
     def run():
-        return run_backup(provider, settings, None, tmp_path / "staging", lambda _: None)
+        return run_backup(provider, settings, tmp_path / "staging", lambda _: None)
     if invalidation == "skipped":
         original_get = notes.get
         def locked(*a, **kw):

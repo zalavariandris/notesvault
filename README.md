@@ -1,7 +1,7 @@
 ﻿# Notes Vault
 
 A PyEdifice desktop GUI that backs up iCloud Notes to a local Git repository.
-Publishing to a private GitHub repository is optional. iCloud notes are never modified.
+Backups stay on your disk with local Git history. iCloud notes are never modified.
 
 See [todo.md](todo.md) for planned work and [changelog.md](changelog.md) for changes.
 
@@ -37,6 +37,8 @@ Add `--demo` to try synthetic notes without an account, `--demo --once` to test 
 single backup, or `--check` to verify runtime imports, Git, and credential storage.
 Demo backups are temporary and removed on exit. PyEdifice uses PySide6/Qt;
 `uv sync --extra dev` installs the desktop dependencies.
+Rich is also installed because PyiCloud 2.7.0 imports it in its Notes renderer.
+The app does not use terminal authentication prompts.
 
 ## Build a Windows executable
 
@@ -55,11 +57,11 @@ Output: `dist\notesvault.exe`. Git must still be on PATH. The dashboard opens in
    are used automatically; otherwise an in-app form asks for your Apple Account
    email and password. Complete verification in the GUI when required.
 2. Select **Fetch iCloud now** in the Disk card. If the backup folder is missing,
-   choose it in the form or native folder picker. The backup resumes after setup;
+   choose it in the Disk card or native folder picker. The backup resumes after setup;
    if iCloud is disconnected, sign-in is requested as well.
-3. Optionally choose **Set up GitHub** and enter a private `owner/repository` plus
-   a token with Contents read/write permission. **Publish to GitHub** retries a push.
-4. Use Settings to change the folder or interval. Results and errors appear in Logs.
+3. Change the folder or interval in the Disk card. Edits save automatically after
+   a short typing pause; invalid values leave the saved settings intact.
+4. Tasks shows the current operation. Results and errors appear in Logs.
    Close the window to quit; active operations must finish first.
 
 Automatic fetching runs while the GUI window is open; set the interval to `0` for manual
@@ -68,9 +70,9 @@ Expired sessions require reconnection.
 
 ## iCloud sign-in
 
-Account setup uses PyEdifice forms inside the same window. Password and GitHub
-token fields are masked; verification codes are visible. Passwords and tokens
-are stored in the OS credential store only after successful verification.
+Account setup uses forms in the iCloud card. Password fields are masked;
+verification codes are visible. Passwords are stored in the OS credential store
+only after successful verification.
 **Cancel setup** returns to the dashboard and clears pending authentication.
 Completed settings are retained. **Disconnect iCloud** removes the saved password
 and local session, pauses fetching, and preserves backups.
@@ -85,7 +87,7 @@ There are no terminal prompts. `--demo`, `--check`, and `--once` remain availabl
   Existing managed JSON sidecars are removed when their notes are re-exported;
   earlier versions remain in Git history. The internal backup manifest stays JSON.
 - Changes are committed locally. Local edits and incomplete fetches block destructive
-  replacement; skipped notes defer deletions. Push failures preserve local backups.
+  replacement; skipped notes defer deletions.
 - Browse earlier versions with `git log --all -- notes` and
   `git show <commit>:<path>`. Restore files outside the managed backup folder.
 - Uses unofficial PyiCloud 2.7.0; live-account verification remains open. Rich formatting,
@@ -93,14 +95,22 @@ There are no terminal prompts. `--demo`, `--check`, and `--once` remain availabl
   Code-based 2FA is supported; hardware security keys and legacy two-step auth are not.
 
 Settings and sessions use the per-user `NotesVault` data directory (`--data-dir`
-overrides it). Passwords and tokens use OS credential storage. Optional `.env`
+overrides it). Passwords use OS credential storage. Optional `.env`
 defaults must not contain secrets or be committed.
+
+GitHub publishing has been removed. Existing settings still load; retired GitHub
+options disappear on the next save. Local backups and Git history are preserved.
+Any previously saved GitHub token remains unused in the OS credential store and
+can be removed there. Existing Git remotes are left untouched.
 
 ## Tests
 
 ```powershell
 .venv\Scripts\python.exe -m pytest
 ```
+
+Tests cover application workflows, authentication, settings, retrieval, exports,
+and local Git recovery without Qt widgets. Use `--demo` for a desktop smoke check.
 
 ## Download caching
 

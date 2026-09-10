@@ -30,5 +30,8 @@ class BackupResult:
     deleted: int = 0
     skipped: int = 0
     commit: str = "No changes"
-    push: str = "Not configured"
     warnings: list[str] = field(default_factory=list)
+
+    def summary(self) -> str:
+        return (f"{self.added} added | {self.updated} updated | "
+                f"{self.deleted} deleted | {self.skipped} skipped\nLocal Git: {self.commit}")

@@ -7,25 +7,30 @@ Backlog entries do not authorize work outside the current user request.
 - [x] Review whether `EXPORT_VERSION` is necessary: retain it to invalidate cached
       exports after format/support changes even when the iCloud cursor is unchanged.
       Fixed the outdated monkeypatch target; all five cache service tests pass.
-- [ ] get rid of GitHub related code. we are not going to push the notes ot github.
-      Ofcourse, we keep the local git, for history.
-- [x] FIX icloud login. right inside the ICloudComponent
-- [ ] review codebase, and remove redundant code as well as outdated tests.
-- [ ] Fix the demo provider's missing `write_export` import; the service test
-      `test_push_failure_keeps_local_commit` currently fails with `NameError`.
-- [ ] remvoe all UI related test code. keep the logic only.
-- [ ]
+- [x] Remove GitHub publishing code, settings, forms, and tests; retain local Git
+      history. Existing settings migrate without losing the backup folder.
+- [x] Keep iCloud login and verification inside `ICloudComponent`, including
+      saved-credential reconnection, cancellation, and disconnect controls.
+- [x] Review and refactor the codebase, remove redundant code and obsolete tests,
+      then review again. Removed the unused account form, stale imports, and
+      credential debug output; fixed demo exports and unsafe empty/dot paths.
+- [x] Fix the demo provider's missing `write_export` import; local commit and
+      staging cleanup are covered by the replacement demo service test.
+- [x] Remove UI interaction tests and their pytest-asyncio dependency. Keep logic
+      tests for the controller, authentication, configuration, exports, and Git.
 
-## UPDATE UI code
-- [x] basically we keep the notes in 3 places: iCloud, Disc(Local git), GitHub.
-  update the UI itself as well as the related code to reflect that.
+## Desktop and task management
+- [x] Reflect the current two locations: iCloud source and local disk/Git backups.
 - [x] Replace Textual with a PyEdifice/Qt GUI using reactive state snapshots,
-  background operations, and GUI tests.
+  background operations, and synthetic desktop smoke checks.
 - [x] Move account setup into PyEdifice forms. Login reuses saved credentials;
   Fetch prompts for a missing folder and resumes after setup.
-- [ ] Save setting automatically when changed!
-- [ ] task management needs a refactor!
-- [ ] create a TasksViewerComponent, and show the current active tasks.
+- [x] Automatically save folder and interval edits after a typing pause; retain
+  saved values on validation failure and save pending edits before fetching.
+- [x] Refactor controller task management into a Qt-independent workflow layer
+  and a small Qt adapter. Use one named active task, per-task completion context,
+  queued notifications, and explicit continuation after successful setup.
+- [x] Add `TasksViewerComponent` to show the active operation.
 
 ## Backup efficiency
 
@@ -46,6 +51,9 @@ Backlog entries do not authorize work outside the current user request.
 
 - [x] Resolve the documented `setup.bat` workflow. We dont want that anymore.
   Update the setup instructions to the supported commands.
+- [x] Verify the cleanup with 47 passing logic tests, `--demo --once`, `--check`,
+  dependency sync/lock checks, and synthetic desktop fetch/autosave smoke checks.
+  Restore Rich as a runtime dependency required by PyiCloud's Notes imports.
 
 ## Investigation notes
 

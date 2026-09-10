@@ -1,30 +1,29 @@
 import argparse
 import logging
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from dotenv import load_dotenv
 
-from .ui.controller import NotesVaultController
 from .config import ConfigStore, SecretStore
 from .models import AppError
 from .providers import DemoProvider, ICloudProvider
 from .service import run_backup
 
-from PySide6.QtWidgets import QApplication
-import edifice as ed
-from .ui.dashboard import Dashboard
-
-def run_gui(config_store:ConfigStore, is_demo: bool=False):
-    controller = NotesVaultController(config_store, is_demo=is_demo)
+def run_gui(config_store: ConfigStore, is_demo: bool = False):
+    from PySide6.QtWidgets import QApplication
+    import edifice as ed
+    from .ui.controller import NotesVaultController
+    from .ui.dashboard import Dashboard
 
     application = QApplication.instance() or QApplication([])
-    controller.gui = ed.App(Dashboard(controller), qapplication=application)
+    controller = NotesVaultController(config_store, is_demo=is_demo)
+    gui = ed.App(Dashboard(controller), qapplication=application)
     controller.timer.start()
     try:
-        controller.gui.start()
-        return None
+        gui.start()
     finally:
         controller.cleanup()
 
@@ -39,13 +38,14 @@ def main():
     logging.disable(logging.CRITICAL)
     if args.check:
         import subprocess
-        from pyicloud import PyiCloudService
-        from pyicloud.services.notes.service import NotesService
         try:
+            from .ui.dashboard import Dashboard
+            from pyicloud import PyiCloudService
+            from pyicloud.services.notes.service import NotesService
             subprocess.run(["git", "--version"], check=True,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             SecretStore().backend()
-            assert callable(PyiCloudService) and callable(NotesService.iter_all)
+            assert callable(Dashboard) and callable(PyiCloudService) and callable(NotesService.iter_all)
         except Exception:
             print("Runtime check failed. Verify Git and OS credential-store availability.")
             raise SystemExit(1) from None
@@ -62,8 +62,7 @@ def main():
         secrets = SecretStore()
         if args.demo:
             provider = DemoProvider()
-            settings.backup_folder = str(config_store.directory / "backups")
-            settings.github_repo = ""
+            settings = replace(settings, backup_folder=str(config_store.directory / "backups"))
         else:
             provider = ICloudProvider(config_store.directory / "sessions")
             if not settings.apple_id:
@@ -72,16 +71,14 @@ def main():
             ready = bool(password) and provider.login(settings.apple_id, password)
             if not ready:
                 raise AppError("Reconnect iCloud in the dashboard before running --once.")
-        result = run_backup(provider, settings, secrets, config_store.directory / "staging", print)
-        settings.last_backup = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        settings.last_result = (f"{result.added} added · {result.updated} updated · {result.deleted} deleted · {result.skipped} skipped"
-            f"\nLocal Git: {result.commit}\nGitHub: {result.push}")
+        result = run_backup(provider, settings, config_store.directory / "staging", print)
+        settings = replace(settings, last_backup=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                           last_result=result.summary())
         config_store.save(settings)
-        print(f"{result.added} added, {result.updated} updated, {result.deleted} deleted, {result.skipped} skipped.")
-        print(f"Local Git: {result.commit}. GitHub: {result.push}.")
+        print(result.summary())
         for warning in result.warnings:
             print(warning)
-        if result.skipped or (settings.github_repo and not result.push.startswith("Published to ")):
+        if result.skipped:
             raise SystemExit(1)
     except (KeyboardInterrupt, EOFError):
         print("Operation cancelled.")

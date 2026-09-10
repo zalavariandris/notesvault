@@ -81,7 +81,7 @@ class BackupRepository:
 
     def path(self, relative: str) -> Path:
         posix = PurePosixPath(relative)
-        if (not relative or "\\" in relative or ":" in relative or posix.is_absolute()
+        if (not posix.parts or "\\" in relative or ":" in relative or posix.is_absolute()
             or any(p in (".", "..", ".git") for p in posix.parts)
             or (relative != MANIFEST and posix.parts[0] not in ("notes", "attachments"))):
             raise AppError("Unsafe path in backup data; no files were changed.")
@@ -112,7 +112,7 @@ class BackupRepository:
             raise AppError("The backup manifest is invalid. Restore it from Git history before fetching.") from exc
 
     def apply(self, snapshot: Snapshot) -> BackupResult:
-        """Caller holds locked() for the entire fetch/apply/push cycle."""
+        """Caller holds locked() for the entire fetch/apply cycle."""
         old = self.read_manifest()
         account = digest(snapshot.account.strip().lower().encode())
         if old["account"] not in (None, account):
