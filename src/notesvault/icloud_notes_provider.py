@@ -13,10 +13,11 @@ class ICloudNotesProvider:
         self.session = session
         self.account = account
 
-    def fetch(self, directory: Path, progress, *, previous=None, previous_cursor=None,
+    def fetch(self, directory: Path | None, progress, *, previous=None, previous_cursor=None,
               control: FetchControl | None = None, download_attachments: bool = False) -> SnapshotModel:
         from pyicloud.services.notes.service import NoteLockedError, NoteNotFound
         control = control or FetchControl()
+        buffer = provider_utils.ExportBuffer()
         try:
             control.checkpoint()
             service = self.session.notes
@@ -51,7 +52,7 @@ class ICloudNotesProvider:
             retained = [note for note in previous or [] if note.note_id not in changes] if incremental else []
             result = SnapshotModel(account=self.account, notes=retained, deleted_ids=deleted, warnings=[scope_warning])
             if not download_attachments:
-                result.warnings.append("Attachment downloads are disabled. Enable Download attachments in the Disk card to include them.")
+                result.warnings.append("Attachment downloads are disabled. Enable Download attachments in the Backup card to include them.")
             if retained:
                 progress(f"Reusing {len(retained)} unchanged notes.")
             locked = unavailable_count = formatting_fallbacks = 0
@@ -75,7 +76,9 @@ class ICloudNotesProvider:
                         if not attachment.download_url:
                             unavailable = True
                             break  # A preview is not an original attachment backup.
-                        download = directory / "downloads" / provider_utils.stable_id(note.id) / provider_utils.stable_id(attachment.id)
+                        if directory is None:
+                            raise AppError("An attachment download directory is required.")
+                        download = directory / provider_utils.stable_id(note.id) / provider_utils.stable_id(attachment.id)
                         download.parent.mkdir(parents=True, exist_ok=True)
                         with download.open("wb") as output:
                             for chunk in control.iterate(attachment.stream(service=service)):
@@ -98,10 +101,10 @@ class ICloudNotesProvider:
                         text = note.text
                     if not html:
                         formatting_fallbacks += 1
-                    result.notes.append(provider_utils.write_export(directory, note.id, note.title or "Untitled",
+                    result.notes.append(buffer.retain(provider_utils.render_export(note.id, note.title or "Untitled",
                         text, note.folder_name or "Notes", note.folder_id or "default",
                         note.modified_at.isoformat() if note.modified_at else None, attachments,
-                        format_description="Markdown with rich text" if html else "plain text in Markdown; rich formatting is unavailable"))
+                        format_description="Markdown with rich text" if html else "plain text in Markdown; rich formatting is unavailable")))
                 except NoteLockedError:
                     locked += 1
                     result.skipped += 1

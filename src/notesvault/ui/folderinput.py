@@ -3,6 +3,7 @@ from typing import Callable
 
 import edifice as ed
 from PySide6.QtWidgets import QFileDialog
+from .components import Action, INPUT
 
 
 @ed.component
@@ -15,5 +16,6 @@ def FolderInput(self, folder: str, on_change: Callable[[str], None], enabled: bo
             on_change(selected)
 
     with ed.HBoxView().register_ref(window_ref):
-        ed.TextInput(folder, on_change=on_change, enabled=enabled)
-        ed.Button("Browse...", on_click=browse, enabled=enabled)
+        ed.TextInput(folder, on_change=on_change, enabled=enabled,
+                     placeholder_text="Choose a local backup folder", style=INPUT, tool_tip=folder)
+        Action("Browse…", browse, enabled=enabled)

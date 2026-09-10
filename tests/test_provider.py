@@ -9,14 +9,14 @@ from notesvault.icloud_notes_provider import ICloudNotesProvider
 
 def test_frontmatter_preserves_metadata_and_body(tmp_path):
     import json
-    from notesvault.provider_utils import write_export
+    from notesvault.provider_utils import render_export
 
     title = 'A "title": # tag\n---\nUnicode \u2601'
-    exported = write_export(tmp_path, "001", title, "# Body\r\n\r\nText", "Notes", "folder", None, [])
+    exported = render_export("001", title, "# Body\r\n\r\nText", "Notes", "folder", None, [])
     assert len(exported.files) == 1
-    path = next(iter(exported.files.values()))
-    assert path.suffix == ".md"
-    header, body = path.read_text(encoding="utf-8")[4:].split("\n---\n\n", 1)
+    name, content = next(iter(exported.files.items()))
+    assert name.endswith(".md")
+    header, body = content.decode("utf-8")[4:].split("\n---\n\n", 1)
     metadata = {key: json.loads(value) for key, value in
                 (line.split(": ", 1) for line in header.splitlines())}
     assert metadata == {
@@ -49,6 +49,23 @@ def test_full_scan_exports(tmp_path):
     snapshot = provider(tmp_path, Notes()).fetch(tmp_path / "stage", lambda _: None)
     assert snapshot.complete
     assert len(snapshot.notes) == 1
+
+
+@pytest.mark.parametrize("html,rich", [
+    ("<h2>Heading</h2><p><b>Synthetic</b> <custom>content</custom></p>", True),
+    ("<style>unused</style>", False),
+])
+def test_renderer_integration_and_readable_fallback(tmp_path, html, rich):
+    class Rendered(Notes):
+        def render_note(self, note_id, **options):
+            assert options == {"export_mode": "lightweight", "full_page": False, "debug": False}
+            return html
+    snapshot = provider(tmp_path, Rendered()).fetch(None, lambda _: None)
+    content = next(iter(snapshot.notes[0].files.values())).decode()
+    assert ("## Heading" in content) is rich
+    assert "**Synthetic**" in content if rich else "Synthetic content" in content
+    assert any("plain text was exported" in message for message in snapshot.warnings) is not rich
+    assert not list(tmp_path.rglob("*.md"))
 
 
 def test_pagination_error_aborts_before_returning_snapshot(tmp_path):

@@ -13,14 +13,11 @@ from ..disk_vault_controller import DiskVaultController
 from ..icloud_authentication_controller import ICloudAuthenticationController
 from ..icloud_notes_provider import ICloudNotesProvider
 from ..icloud_secret_store import SecretStoreController
-from .authentication import AuthenticationComponent
-from .folderinput import FolderInput
+from ..activity_log import append_entry
+from .cards import AccountCard, BackupCard, TaskCard, LogCard
+from .components import Text
+from .sign_in import SignInWindow
 from .tasks import use_tasks
-
-
-card_body = {"padding": 16, "border": "1px solid #41576a", "border-radius": 8, "margin": 6}
-card_title = {"font-size": 20, "font-weight": "bold"}
-danger_border = {"border": "1px solid #ef4444"}
 
 
 @ed.component
@@ -35,7 +32,7 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
     error, set_error = ed.use_state("")
 
     def log_output(message):
-        set_logs(lambda previous: (*previous, message)[-200:])
+        set_logs(lambda previous: append_entry(previous, message, datetime.now()))
 
     active_task, task_progress, start_task, task_is_running, fetch_actions = use_tasks(
         window_ref, log_output, authentication.clear)
@@ -59,10 +56,12 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
     pending_fetch, set_pending_fetch = ed.use_state(False)
     resume_fetch, set_resume_fetch = ed.use_state(False)
     next_fetch, set_next_fetch = ed.use_state(None)
+    fetch_failed, set_fetch_failed = ed.use_state(False)
     setup_open = auth_step in ("login", "verify") or folder_requested
 
     def task_started():
         set_error("")
+        set_fetch_failed(False)
         set_next_fetch(None)
         set_resume_fetch(False)
 
@@ -172,13 +171,13 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
         return True
 
     async def autosave():
-        if busy or not dirty or attempted == draft:
+        if busy or auth_step in ("login", "verify") or not dirty or attempted == draft:
             return
         await asyncio.sleep(0.5)
         if save_settings():
             set_attempted(draft)
 
-    ed.use_async(autosave, (draft, busy, dirty, attempted))
+    ed.use_async(autosave, (draft, busy, dirty, attempted, auth_step))
     ed.use_effect(lambda: set_folder(config.backup_folder), (config.backup_folder,))
     ed.use_effect(lambda: set_interval(str(config.interval_minutes)), (config.interval_minutes,))
     ed.use_effect(lambda: set_attachments(config.download_attachments), (config.download_attachments,))
@@ -192,7 +191,8 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
             set_folder_requested(True)
             # Also prepares a saved folder whose repository has not been initialized.
             return save_settings(fetch_after=True) if config.backup_folder else True
-        if not connected:
+        if not (is_demo or authentication.connected):
+            set_connected(False)
             set_pending_fetch(True)
             return connect()
 
@@ -209,6 +209,7 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
                 log_output(message)
 
         def failed(message):
+            set_fetch_failed(True)
             set_error(message)
             set_connected(is_demo or authentication.connected)
 
@@ -251,64 +252,53 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
 
     ed.use_async(scheduled_fetch, (next_fetch,))
 
-    with ed.Window(title="Notes Vault", _size_open=(1100, 760)).register_ref(window_ref):
-        with ed.VBoxView():
-            with ed.VBoxView(css_class="Danger" if not connected else "",
-                             style={**card_body, **(danger_border if not connected else {})}):
-                ed.Label("iCloud", style=card_title)
-                AuthenticationComponent(
-                    account=config.apple_id, phase="connected" if connected else auth_step,
-                    on_login=login, on_verify=verify, on_connect=connect,
-                    on_logout=logout, on_cancel=cancel_setup, enabled=not busy and not is_demo,
-                    account_placeholder="Apple Account email", disconnected_text="No Apple Account connected",
-                    logout_text="Disconnect iCloud",
-                )
+    save_state = ("Saving preferences…" if active_task == "Saving settings" else
+                  "Preferences need attention. Check the message below." if dirty and attempted == draft and error else
+                  "Changes will save automatically…" if dirty else "Preferences saved · 0 minutes = manual only")
+    schedule_text = (f"Next fetch: {next_fetch:%H:%M:%S}" if next_fetch else
+                     "Manual fetching" if not config.interval_minutes else "Automatic fetching paused until ready")
 
-            with ed.VBoxView(css_class="Danger" if not config.backup_folder else "",
-                             style={**card_body, **(danger_border if not config.backup_folder else {})}):
-                ed.Label("Disk", style=card_title)
-                FolderInput(folder=folder, on_change=set_folder, enabled=not busy)
-                ed.Label("Changes save automatically after you stop typing.")
-                ed.Label(f"Last backup: {backup_status.last_backup}")
-                ed.Label(f"Next fetch: {next_fetch:%H:%M:%S}" if next_fetch else
-                         "Manual fetching" if not config.interval_minutes else "Automatic fetch: paused")
-                ed.Label("Automatic fetch interval in minutes (0 = manual only)")
-                ed.TextInput(interval, on_change=set_interval, enabled=not busy)
-                ed.CheckBox(checked=attachments, text="Download attachments", on_change=set_attachments, enabled=not busy)
-                ed.Label("Off by default. Previously downloaded attachments remain in Git history.")
-                if folder_requested:
-                    ed.Label("Choose a backup folder to continue the fetch.")
-                    ed.Button("Retry folder setup", enabled=not busy, on_click=lambda _: save_settings(fetch_after=True))
-                    ed.Button("Cancel setup", enabled=not busy, on_click=lambda _: cancel_setup())
-                ed.Button("Fetch iCloud now", enabled=not busy and not setup_open, on_click=fetch_clicked)
-
-            with ed.VBoxView(style=card_body):
-                ed.Label("Tasks", style=card_title)
-                ed.Label(active_task or "No active tasks")
-                if active_task:
-                    ed.Label(task_progress or "Working…")
-                if fetch_actions.state:
-                    if fetch_actions.state == "pausing":
-                        ed.Label("Pausing after the current request…")
-                    elif fetch_actions.state == "paused":
-                        ed.Label("Fetch paused")
-                    elif fetch_actions.state == "cancelling":
-                        ed.Label("Cancelling after the current request…")
-                    elif fetch_actions.state == "saving":
-                        ed.Label("Finishing local backup safely…")
-                    with ed.HBoxView():
-                        if fetch_actions.state in ("pausing", "paused"):
-                            ed.Button("Resume fetch", on_click=lambda _: fetch_actions.resume())
-                        else:
-                            ed.Button("Pause fetch", enabled=fetch_actions.state == "running",
-                                      on_click=lambda _: fetch_actions.pause())
-                        ed.Button("Cancel fetch", enabled=fetch_actions.state in ("running", "pausing", "paused"),
-                                  on_click=lambda _: fetch_actions.cancel())
-
-            with ed.VBoxView(style=card_body):
-                ed.Label("Logs", style=card_title)
-                if error:
-                    ed.Label(error)
-                ed.Label(backup_status.last_result)
-                with ed.VScrollView(style={"padding": 16}):
-                    ed.Label("\n".join(reversed(logs)) or "No activity yet.")
+    with ed.Window(title="Notes Vault", _size_open=(520, 860)).register_ref(window_ref):
+        with ed.VBoxView(style={"padding": 16, "align": "top"}):
+            # Text("Notes Vault", style={"padding": 16, "font-size": 26, "font-weight": "bold"})
+            # Text("Apple Notes, with a local history.", style={"padding": 16, "margin-bottom": 14})
+            AccountCard(
+                account=config.apple_id, 
+                connected=connected, 
+                is_demo=is_demo,
+                enabled=not busy and not setup_open, 
+                on_connect=connect, 
+                on_logout=logout)
+            
+            BackupCard(
+                folder=folder, 
+                interval=interval, 
+                attachments=attachments,
+                on_folder=set_folder, 
+                on_interval=set_interval, 
+                on_attachments=set_attachments,
+                enabled=not busy and auth_step == "idle", 
+                save_state=save_state,
+                folder_requested=folder_requested, 
+                on_continue=lambda: save_settings(fetch_after=True),
+                on_cancel=cancel_setup, 
+                on_fetch=fetch_clicked, 
+                can_fetch=not busy and not setup_open,
+                next_fetch=schedule_text, 
+                last_backup=backup_status.last_backup)
+            TaskCard(
+                active_task=active_task, 
+                progress=task_progress, 
+                controls=fetch_actions,
+                last_result=backup_status.last_result, 
+                error=error if auth_step == "idle" else "",
+                retry=fetch_failed and not setup_open, 
+                on_retry=fetch_clicked)
+            LogCard(
+                entries=logs, 
+                on_clear=lambda: set_logs(()))
+            
+    if auth_step in ("login", "verify"):
+        SignInWindow(account=authentication.account or config.apple_id, phase=auth_step,
+                        busy=busy, operation=active_task, error=error,
+                        on_login=login, on_verify=verify, on_cancel=cancel_setup)

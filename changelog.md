@@ -6,6 +6,55 @@ Outstanding work is tracked in [todo.md](todo.md).
 
 ## Unreleased
 
+- Refined the desktop UI around reusable account, backup, Tasks, and Logs cards,
+  shared styling, and plain-text labels. The dashboard opens at 520 × 860 in a
+  scrolling column and fits narrow windows. Backup preferences show autosave state;
+  Tasks separates active progress from the last result and offers fetch retries.
+- Added searchable, selectable timestamped logs with Copy and Clear, retaining
+  the latest 200 messages. Clearing the viewer preserves the persisted result.
+- Moved sign-in and verification into a focused popup with inline errors, keyboard
+  submission, masked passwords, and safe cancellation. Saved credentials are tried
+  first; successful setup closes the popup and resumes pending fetches. Active
+  authentication requests block closing, and expired connections are rechecked
+  before fetching. No settings or backup migration is required.
+- Verified 111 logic tests, runtime/demo checks, and synthetic desktop flows for
+  narrow layouts, preference autosave, logs, fetch controls/retry, and popup
+  login/verification, keyboard controls, cancellation, saved-credential login,
+  reconnection, and pending-fetch continuation. Live iCloud verification remains open.
+
+- Reviewed the architecture and separated pure export rendering, disposable cursor
+  persistence (`FetchCache`), and disk validation/planning/saving. GUI and CLI still
+  share the backup workflow; authentication and task lifecycle boundaries remain.
+- Removed temporary Markdown exports. Rendered bytes stay in a 64 MiB fetch buffer
+  until the protected save phase, then write directly to final vault paths. Optional
+  attachments stream once to temporary downloads; pause/cancel and Git rollback
+  retain their safety guarantees. Interrupted saves keep a recovery journal and
+  copies, block further fetches, and have documented manual recovery instructions.
+- Note filenames now use `YYYY-MM-DD-<TITLE>-[<ID>].md`, with UTC modification dates,
+  safe titles, and stable ID hashes. Missing/invalid dates use `0000-00-00`.
+  Incremented the export version to invalidate cached filenames. This scope starts
+  with an empty vault; no old-vault migration is required.
+- Verified existing rich Markdown conversion and incremental downloads, including
+  provider rendering/fallback, folder refreshes, cursor expiry, skipped content,
+  explicit deletions, and failed saves. Reject unexpected zones in raw change
+  responses. PyiCloud 2.7.0 still cannot export separate shared zones or locked
+  content; warnings and retention behavior are documented.
+- Documented the existing attachment preference (off by default) and its cache
+  invalidation behavior. Verified 109 logic tests, runtime checks, a one-shot demo,
+  and synthetic desktop attachment autosave, progress, pause/resume, cancellation,
+  failure/retry, repeat backup, and close while paused. Live iCloud verification
+  remains outstanding.
+
+- Added an experimental dependency graph helper using Python symbol tables to
+  connect scopes to referenced bindings, including globals, closures, and local
+  shadowing. Graphs use dictionaries and sets without new dependencies; dynamic
+  attribute resolution and assignment data flow remain outside its scope.
+
+- Added an experimental function-level Python AST comparison with tests for
+  changed, unchanged, added, and removed functions, including methods and nested
+  functions. Formatting and comments are ignored; external dependencies are not
+  analyzed. No migration is required.
+
 - Added Pause/Resume and Cancel fetch controls to Tasks. Fetch workers stop at
   cooperative checkpoints during listing, note downloads, and attachment streaming.
   Pause retains staging for continuation; cancellation discards unfinished staging

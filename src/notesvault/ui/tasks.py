@@ -81,7 +81,7 @@ def use_tasks(window_ref, log_output, cleanup):
                 set_task_progress("")
                 set_control_state("")
                 if manager.closing:
-                    # The worker has stopped and released staging/repository locks.
+                    # The worker has stopped and released downloads/repository locks.
                     asyncio.get_running_loop().call_soon(window_ref().underlying.close)
 
     consume_task, _ = ed.use_async_call(consume)

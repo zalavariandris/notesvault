@@ -8,8 +8,8 @@ class AppError(Exception):
 @dataclass
 class ExportedNoteModel:
     note_id: str
-    # Paths are relative to the backup root; values point to staged files.
-    files: dict[str, Path]
+    # Relative vault paths map to rendered bytes, downloaded assets, or reused exports.
+    files: dict[str, bytes | Path]
 
 
 @dataclass

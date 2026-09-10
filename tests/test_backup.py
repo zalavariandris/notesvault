@@ -4,11 +4,11 @@ import pytest
 
 from notesvault.disk_vault_controller import DiskVaultController, MANIFEST, git
 from notesvault.models import AppError, SnapshotModel
-from notesvault.provider_utils import write_export
+from notesvault.provider_utils import render_export
 
 
 def note(stage, note_id="one", title="A note", text="original", attachments=None):
-    return write_export(stage, note_id, title, text, "Notes", "folder", None, attachments or [])
+    return render_export(note_id, title, text, "Notes", "folder", None, attachments or [])
 
 
 def apply(repo, notes, **kwargs):
@@ -27,7 +27,7 @@ def test_backup_repeat_rename_delete_and_history(tmp_path):
     assert apply(repo, [renamed]).updated == 1
     original_md = next(name for name in original.files if name.endswith(".md"))
     assert not (repo.root / original_md).exists()
-    assert git(repo.root, "show", f"{head.decode().strip()}:{original_md}").stdout == original.files[original_md].read_bytes()
+    assert git(repo.root, "show", f"{head.decode().strip()}:{original_md}").stdout == original.files[original_md]
     assert apply(repo, []).deleted == 1
     assert git(repo.root, "status", "--porcelain").stdout == b""
 
@@ -36,9 +36,10 @@ def test_legacy_sidecar_migrates_and_remains_in_history(tmp_path):
     repo = DiskVaultController(tmp_path / "backup")
     original = note(tmp_path / "legacy")
     md = next(iter(original.files))
-    original.files[md].write_text("original\n", encoding="utf-8")
+    original.files[md] = b"original\n"
     sidecar = str(Path(md).with_suffix(".json")).replace("\\", "/")
     source = tmp_path / "legacy" / sidecar
+    source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text('{"id": "one"}\n', encoding="utf-8")
     original.files[sidecar] = source
     apply(repo, [original])
@@ -144,3 +145,27 @@ def test_repository_lock_blocks_second_instance(tmp_path):
     with repo.locked(), pytest.raises(AppError, match="Another backup"):
         with DiskVaultController(repo.root).locked():
             pass
+
+
+def test_failed_rollback_preserves_recovery_files(tmp_path, monkeypatch):
+    import json
+    from notesvault import disk_vault_controller as disk
+    repo = DiskVaultController(tmp_path / "backup")
+    original = note(tmp_path / "unused")
+    apply(repo, [original])
+    real_git, real_copy = disk.git, disk.shutil.copyfile
+    def fail_commit(root, *args, **kwargs):
+        if "commit" in args:
+            raise AppError("synthetic commit failure")
+        return real_git(root, *args, **kwargs)
+    def fail_restore(source, target, *args, **kwargs):
+        if Path(source).parent.name.startswith("notes-rollback-"):
+            raise OSError("synthetic restore failure")
+        return real_copy(source, target, *args, **kwargs)
+    monkeypatch.setattr(disk, "git", fail_commit)
+    monkeypatch.setattr(disk.shutil, "copyfile", fail_restore)
+    with pytest.raises(OSError, match="restore failure"):
+        apply(repo, [note(tmp_path / "unused", text="changed")])
+    journal = json.loads((repo.root / ".git/notesvault-save.json").read_text())
+    name, content = next(iter(original.files.items()))
+    assert (repo.root / ".git" / journal["rollback"] / journal["before"][name]).read_bytes() == content

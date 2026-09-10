@@ -55,23 +55,23 @@ def backup(tmp_path):
     provider = ICloudNotesProvider(SimpleNamespace(notes=cloud), "synthetic@example.invalid")
     controller = BackupController(tmp_path / "backup")
     def run(**kwargs):
-        return controller.run_backup(provider, tmp_path / "stage", lambda _: None, **kwargs)
+        return controller.run_backup(provider, lambda _: None, **kwargs)
     return cloud, controller.vault.root, run
 
 
 def test_only_changed_notes_download_and_renames_keep_identity(backup):
     cloud, root, run = backup
     assert run().added == 2
-    original = next(root.rglob("First_*.md")).read_bytes()
+    original = next(root.rglob("*-First-*.md")).read_bytes()
     cloud.cursor, cloud.events = "second", [event("two")]
     cloud.data["two"] = "Renamed"
     result = run()
     assert result.updated == 1 and result.added == result.deleted == 0
     assert cloud.downloads == [("one", False), ("two", False), ("two", False)]
     assert cloud.calls == [None, "first"]
-    assert next(root.rglob("First_*.md")).read_bytes() == original
-    assert len(list(root.rglob("Renamed_*.md"))) == 1
-    assert not list(root.rglob("Second_*.md"))
+    assert next(root.rglob("*-First-*.md")).read_bytes() == original
+    assert len(list(root.rglob("*-Renamed-*.md"))) == 1
+    assert not list(root.rglob("*-Second-*.md"))
     assert run().commit == "No changes"
     assert len(cloud.downloads) == 3
 
@@ -83,7 +83,7 @@ def test_explicit_deletion_commits_without_downloading_remaining_notes(backup):
     cloud.data.pop("one")
     assert run().deleted == 1
     assert len(cloud.downloads) == 2
-    assert not list(root.rglob("First_*.md"))
+    assert not list(root.rglob("*-First-*.md"))
     assert git(root, "log", "--oneline").stdout.count(b"\n") == 2
 
 
@@ -95,7 +95,7 @@ def test_expired_cursor_discards_partial_delta_and_full_scans(backup):
     assert result.deleted == 0
     assert cloud.calls == [None, "first", None]
     assert len(cloud.downloads) == 4
-    assert list(root.rglob("First_*.md"))
+    assert list(root.rglob("*-First-*.md"))
     assert json.loads((root / ".git/notesvault-fetch.json").read_text())["cursor"] == "second"
 
 
@@ -109,7 +109,7 @@ def test_network_or_page_failure_never_applies_partial_deletions(backup):
         run()
     assert "private diagnostic" not in str(error.value)
     assert cache.read_bytes() == original
-    assert list(root.rglob("First_*.md"))
+    assert list(root.rglob("*-First-*.md"))
     assert cloud.calls == [None, "first"]
 
 
@@ -124,7 +124,7 @@ def test_inaccessible_note_defers_deletions_and_cache_until_retry(backup, locked
     result = run()
     assert result.skipped == 1 and result.deleted == 0
     assert (root / ".git/notesvault-fetch.json").read_bytes() == original
-    assert list(root.rglob("First_*.md")) and list(root.rglob("Second_*.md"))
+    assert list(root.rglob("*-First-*.md")) and list(root.rglob("*-Second-*.md"))
     cloud.missing.clear()
     cloud.events = [event("one", "deleted"), event("two")]
     assert run().deleted == 1
@@ -138,7 +138,7 @@ def test_full_scan_absence_does_not_delete_content_in_unscanned_zones(backup):
     cloud.cursor = "second"
     result = run()
     assert result.deleted == 0
-    assert list(root.rglob("First_*.md"))
+    assert list(root.rglob("*-First-*.md"))
     assert any("Separate shared zones" in warning for warning in result.warnings)
 
 
@@ -173,5 +173,48 @@ def test_commit_failure_does_not_advance_incremental_cursor(backup, monkeypatch)
     with pytest.raises(AppError, match="commit failure"):
         run()
     assert cache.read_bytes() == original
-    assert list(root.rglob("Second_*.md"))
-    assert not list(root.rglob("Changed_*.md"))
+    assert list(root.rglob("*-Second-*.md"))
+    assert not list(root.rglob("*-Changed-*.md"))
+
+
+def test_folder_change_requires_full_metadata_refresh(backup, monkeypatch):
+    from notesvault import icloud_notes_provider
+    from notesvault.icloud_note_changes import NoteChange
+    cloud, root, run = backup
+    run()
+    cloud.cursor = "second"
+    calls = []
+    def changes(service, since, control):
+        calls.append(since)
+        if since:
+            yield NoteChange("folder", is_folder=True)
+        else:
+            yield from (NoteChange(key) for key in cloud.data)
+    monkeypatch.setattr(icloud_notes_provider, "read_changes", changes)
+    original = cloud.get
+    def moved(*args, **kwargs):
+        note = original(*args, **kwargs)
+        note.folder_name = "Renamed folder"
+        return note
+    monkeypatch.setattr(cloud, "get", moved)
+    assert run().updated == 2
+    assert calls == ["first", None]
+    assert len(cloud.downloads) == 4
+    assert all("Renamed folder" in str(path.parent) for path in root.rglob("*.md"))
+
+
+def test_remote_change_during_delta_retains_previous_snapshot(backup):
+    cloud, root, run = backup
+    run()
+    cache = (root / ".git/notesvault-fetch.json").read_bytes()
+    head = git(root, "rev-parse", "HEAD").stdout
+    cloud.cursor, cloud.events = "second", [event("two")]
+    original = cloud.get
+    def changing(*args, **kwargs):
+        cloud.cursor = "third"
+        return original(*args, **kwargs)
+    cloud.get = changing
+    with pytest.raises(AppError, match="changed during"):
+        run()
+    assert git(root, "rev-parse", "HEAD").stdout == head
+    assert (root / ".git/notesvault-fetch.json").read_bytes() == cache

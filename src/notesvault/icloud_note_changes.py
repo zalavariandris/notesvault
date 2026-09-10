@@ -25,6 +25,8 @@ def read_changes(service, since, control):
             desiredKeys=["Deleted"], syncToken=since, reverse=False,
         )
         for page in control.iterate(service.raw.changes(zone_req=request)):
+            if page.zoneID.zoneName != "Notes" or page.zoneID.zoneType not in (None, "REGULAR_CUSTOM_ZONE"):
+                raise AppError("An unsupported Notes zone was returned. Existing backups were retained.")
             for record in control.iterate(page.records):
                 if isinstance(record, CKErrorItem):
                     raise NotesApiError("CloudKit could not enumerate a record.", payload=record.model_dump())
