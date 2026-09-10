@@ -7,6 +7,7 @@ from urllib.parse import quote
 
 from ..models import AppError, ExportedNote
 
+# Invalidates cached exports even when the iCloud cursor is unchanged.
 # Increment whenever export content or supported content changes.
 EXPORT_VERSION = 1
 

@@ -4,11 +4,15 @@ Track outstanding work here. Check off items only when implementation and releva
 verification are complete. Completed changes belong in [changelog.md](changelog.md).
 Backlog entries do not authorize work outside the current user request.
 
-- [ ] does the EXPORT_VERSION really necessary?
+- [x] Review whether `EXPORT_VERSION` is necessary: retain it to invalidate cached
+      exports after format/support changes even when the iCloud cursor is unchanged.
+      Fixed the outdated monkeypatch target; all five cache service tests pass.
 - [ ] get rid of GitHub related code. we are not going to push the notes ot github.
       Ofcourse, we keep the local git, for history.
-- [ ] FIX icloud login. right inside the ICloudComponent
-- [ ] review codebase, and remove redundant code as well as redundant, or outdated tests.
+- [x] FIX icloud login. right inside the ICloudComponent
+- [ ] review codebase, and remove redundant code as well as outdated tests.
+- [ ] Fix the demo provider's missing `write_export` import; the service test
+      `test_push_failure_keeps_local_commit` currently fails with `NameError`.
 - [ ] remvoe all UI related test code. keep the logic only.
 - [ ]
 

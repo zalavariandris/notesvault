@@ -6,6 +6,11 @@ Outstanding work is tracked in [todo.md](todo.md).
 
 ## Unreleased
 
+- Reviewed and retained `EXPORT_VERSION` for cache invalidation when export content
+  or support changes. Documented when to increment it and repaired the regression
+  test's outdated patch target. All five cache service tests pass; no migration
+  is required.
+
 ### 2026-09-09
 
 - iCloud and Disk cards reactively use a red-bordered Danger class when iCloud

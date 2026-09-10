@@ -105,6 +105,7 @@ def test_cache_fallback(tmp_path, monkeypatch, invalidation):
         if invalidation == "corrupt":
             (tmp_path / "backup" / ".git" / "notesvault-fetch.json").write_text("invalid", encoding="utf-8")
         else:
-            monkeypatch.setattr("notesvault.service.EXPORT_VERSION", 999)
+            from notesvault.providers import utils
+            monkeypatch.setattr(utils, "EXPORT_VERSION", utils.EXPORT_VERSION + 1)
     run()
     assert notes.scans == 2

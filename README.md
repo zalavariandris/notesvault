@@ -109,3 +109,6 @@ existing exports are reused without downloading. Local edits and Git state are
 still checked. Changed cursors trigger a full fetch. The disposable cache in
 `.git/notesvault-fetch.json` is updated only after the local backup succeeds;
 missing or invalid caches and export-format changes trigger a full fetch.
+The internal `EXPORT_VERSION` in `src/notesvault/providers/utils.py` must be
+incremented when export content or supported content changes, so unchanged iCloud
+notes are re-exported using the updated format.
