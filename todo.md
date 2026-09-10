@@ -20,6 +20,8 @@ Backlog entries do not authorize work outside the current user request.
 - [x] Move account setup into PyEdifice forms. Login reuses saved credentials;
   Fetch prompts for a missing folder and resumes after setup.
 - [ ] Save setting automatically when changed!
+- [ ] task management needs a refactor!
+- [ ] create a TasksViewerComponent, and show the current active tasks.
 
 ## Backup efficiency
 

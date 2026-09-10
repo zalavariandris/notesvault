@@ -43,26 +43,43 @@ def ICloudComponent(self, controller: NotesVaultController, state: DashboardStat
     
     icloud_loggedin = not state.connected
 
-    has_connected_account = bool(settings.apple_id)
     account, set_account = ed.use_state(state.settings.apple_id)
     password, set_password = ed.use_state("")
+    code, set_code = ed.use_state("")
+    step = state.setup_step
+
+    def submit_login(_):
+        controller.login_to_icloud(account, password)
+        set_password("")
+
+    def submit_verify(_):
+        controller.verify_vertification_code(code)
+        set_code("")
 
     with ed.VBoxView(css_class="Danger" if icloud_loggedin else "",
                         style={**card_body, **(danger_border if icloud_loggedin else {})}):
         ed.Label("iCloud", style=card_title)
-        if has_connected_account:
+
+        if bool(settings.apple_id):
             ed.Label(settings.apple_id)
-            ed.Button("Disconnect iCloud", enabled=not state.busy and bool(settings.apple_id) and not controller.is_demo,
-                on_click=lambda _: controller.disconnect_icloud())
-        else:
+            
+        elif step != "verify":
             ed.Label("No Apple Account connected")
-            ed.TextInput(account, on_change=set_account, placeholder_text="Apple ID")
+            ed.TextInput(account, 
+                on_change=set_account, 
+                placeholder_text="Apple ID"
+            )
             PasswordInput(password, on_change=set_password, placeholder_text="Password") # todo: add echo mode for password
             ed.Button("Login", enabled=not state.busy and not state.connected and not controller.is_demo,
-                on_click=lambda _: controller.login_to_icloud(account, password))
-        
-        ed.Label("Connected" if state.connected else "Not connected",
-                                style={"color": "#26946b" if state.connected else "#b87b30", "font-weight": "bold"})
+                on_click=submit_login)
+            
+        elif step == "verify":
+            ed.TextInput(code, 
+                on_change=set_code, 
+                placeholder_text="Verification Code"
+            )
+            ed.Button("Verify", enabled=not state.busy and not controller.is_demo,
+                on_click=submit_verify)
             
 
 @ed.component

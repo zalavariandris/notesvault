@@ -106,13 +106,16 @@ class NotesVaultController(QObject):
     def fetch_notes(self):
         if self.state.busy or self.state.setup_step:
             return False
+        
         if not self._folder_ready() and not (self.is_demo and self.state.settings.backup_folder):
             self._pending_fetch = True
             self._set(setup_step="folder", setup_error="", next_fetch=None)
             return True
+        
         if not self.state.connected:
             self._pending_fetch = True
             return self.login_button()
+        
         settings = self.state.settings
         def task():
             result = run_backup(self.provider, settings, self.secrets_store,
@@ -122,6 +125,7 @@ class NotesVaultController(QObject):
                             f"\nLocal Git: {result.commit}\nGitHub: {result.push}")
             self.config_store.save(updated)
             return updated, result.warnings or ["Backup complete. Your local history is up to date."]
+        
         return self._start_task(task)
 
     def save_settings(self, folder, interval):
