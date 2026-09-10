@@ -6,14 +6,65 @@ Outstanding work is tracked in [todo.md](todo.md).
 
 ## Unreleased
 
+- Added Pause/Resume and Cancel fetch controls to Tasks. Fetch workers stop at
+  cooperative checkpoints during listing, note downloads, and attachment streaming.
+  Pause retains staging for continuation; cancellation discards unfinished staging
+  while preserving exports, Git history, cursor cache, and the last backup result.
+- Closing during a fetch now requests cancellation and closes automatically after
+  cleanup. Paused workers also wake on cancellation or unmount. Requests already in
+  flight must return before stopping; an atomic boundary protects local saves from
+  interruption, and closing waits for those saves to finish. Other active operations
+  retain close protection. No configuration or backup migration is required.
+- Verified 77 logic tests and synthetic desktop workflows for pause/resume,
+  cancel/retry, and closing during running, paused, and saving stages. Async cleanup
+  consumes cancelled worker outcomes without an unhandled-exception traceback.
+
+- Tasks now shows live progress beneath the active operation, including the note
+  number during downloads and the local Git stage. Progress remains in Logs and
+  clears from Tasks when an operation finishes or fails. Updates stay on the UI
+  thread and are scoped to the originating task. Verified four task-manager tests
+  and a synthetic desktop progress/lifecycle smoke check. No migration is required.
+
+- Separated background task execution from Dashboard into a Qt-independent
+  `TaskManager` and a UI hook that handles progress, results, close protection, and
+  shutdown. Tasks displays the active operation; reservations prevent overlapping
+  actions before the next render and remain held until results are consumed.
+- Replaced the iCloud-specific form with `AuthenticationComponent`, which owns its
+  input drafts and receives only display props and callbacks. Dashboard owns local
+  hooks grouped by account, disk configuration, and fetching responsibilities.
+- Limited `ConfigModel` to saved preferences and moved last-backup results to
+  `backup-status.json`. Legacy results remain readable and are preserved before
+  the next settings save. Backup exports and Git history need no migration.
+- Split folder configuration and local Git operations (`DiskVaultController`) from
+  fetch orchestration and cursor caching (`BackupController`). Repaired imports
+  after the module moves and restored `--demo`, `--once`, `--check`, and `--data-dir`.
+  GUI and CLI share the backup workflow and result persistence.
+- Verified 63 logic tests and runtime imports, plus synthetic desktop checks for
+  active tasks, overlap prevention, close protection, repeat backups, autosave,
+  saved login, password masking, verification retries, cancellation, setup
+  continuation, logout, and worker cleanup. Live iCloud verification remains open.
+
+- Consolidated repository operations, fetch orchestration, and cursor caching into
+  `controllers/backup_controller.py` and its `BackupController` class. Updated
+  dashboard, CLI, and tests; removed the separate repository and service modules.
+  Repaired stale imports after the model/controller moves, including the standard
+  library datetime import in `models.py`. All 38 logic tests, runtime checks, and a
+  synthetic desktop backup passed. Backup files need no migration.
+
+- Renamed the authentication workflow class to `ICloudAccountSetup` and updated
+  controller and test references. No user configuration migration is required.
+
 - Removed GitHub publishing, its account form and tests, and publishing status
   from backup results. Existing settings discard retired options on save while
   preserving local backup configuration and history. Previously stored GitHub
   tokens remain unused in OS storage; existing Git remotes are unchanged.
-- Split task management into a Qt-independent application controller and a small
-  Qt signal/timer adapter. One named task prevents overlapping work; completion
-  context belongs to that task, and only successful setup operations resume a
-  pending fetch. Settings and dashboard snapshots are immutable.
+- Moved controller workflows and all dashboard cards into one `Dashboard`
+  component. State and form values use `ed.use_state`; actions are nested
+  functions, with hooks managing autosave, scheduling, background results, and
+  cleanup. Removed the controller class and its obsolete tests. Kept overlap
+  prevention, setup continuation, and protection against closing during a task.
+  Verified 38 logic tests, runtime imports, a one-shot demo backup, and synthetic
+  desktop workflow and lifecycle smoke checks. No user migration is required.
 - Added a Tasks viewer and automatic saving of folder/interval edits after a
   typing pause. Invalid settings preserve saved values. Fixed the native folder
   picker reference and restored saved-account login, verification, cancellation,

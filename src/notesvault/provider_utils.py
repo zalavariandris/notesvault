@@ -5,11 +5,11 @@ import shutil
 from pathlib import Path
 from urllib.parse import quote
 
-from ..models import AppError, ExportedNote
+from .models import AppError, ExportedNoteModel
 
 # Invalidates cached exports even when the iCloud cursor is unchanged.
 # Increment whenever export content or supported content changes.
-EXPORT_VERSION = 1
+EXPORT_VERSION = 2
 
 def safe_name(value: str, limit: int = 65) -> str:
     value = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", value).strip(" .")[:limit].rstrip(" .")
@@ -26,7 +26,8 @@ def stable_id(value: str) -> str:
 
 def write_export(directory: Path, note_id: str, title: str, text: str,
                  folder: str, folder_id: str, modified: str | None,
-                 attachments: list[tuple[str, str, bytes | Path]]) -> ExportedNote:
+                 attachments: list[tuple[str, str, bytes | Path]], *,
+                 format_description: str = "plain text in Markdown; rich formatting is not preserved") -> ExportedNoteModel:
     note_key = stable_id(note_id)
     folder_key = f"{safe_name(folder, 35)}_[{stable_id(folder_id)}]"
     base = f"notes/{folder_key}/{safe_name(title)}_[{note_key}]"
@@ -53,8 +54,8 @@ def write_export(directory: Path, note_id: str, title: str, text: str,
         body += "\n\n## Attachments\n\n" + "\n".join(links)
     metadata = {"id": note_id, "title": title, "folder": folder,
                 "folder_id": folder_id, "modified_at": modified,
-                "format": "plain text in Markdown; rich formatting is not preserved"}
+                "format": format_description}
     # JSON-quoted scalars are valid YAML and safely escape metadata characters.
     frontmatter = "\n".join(f"{key}: {json.dumps(value)}" for key, value in sorted(metadata.items()))
     put(base + ".md", (f"---\n{frontmatter}\n---\n\n" + body.rstrip() + "\n").encode("utf-8"))
-    return ExportedNote(note_id, files)
+    return ExportedNoteModel(note_id, files)

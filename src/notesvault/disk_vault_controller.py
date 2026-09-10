@@ -1,16 +1,18 @@
+"""Configure the vault and maintain safe local files and Git history."""
 import hashlib
 import json
 import os
 import shutil
 import subprocess
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
 from filelock import FileLock, Timeout
 
-from .models import AppError, BackupResult, Snapshot
+from .models import AppError, BackupResultModel, SnapshotModel
 
 MANIFEST = ".apple-notes-manifest.json"
 
@@ -50,9 +52,37 @@ def git(root: Path, *args: str, input: bytes | None = None, check=True):
     return result
 
 
-class BackupRepository:
-    def __init__(self, folder: Path):
-        self.root = folder.expanduser().absolute()
+class DiskVaultController:
+    @staticmethod
+    def save_configuration(store, folder: str, interval: str, *, require_folder=False,
+                           download_attachments: bool | None = None):
+        """Validate drafts and prepare the repository before saving preferences."""
+        settings = store.load()
+        try:
+            minutes = int(interval)
+            if not 0 <= minutes <= 10080:
+                raise ValueError()
+        except ValueError:
+            raise AppError("Enter an interval from 0 to 10080 minutes.") from None
+        path = Path(folder.strip()).expanduser().absolute() if folder.strip() else None
+        if not path and settings.backup_folder:
+            raise AppError("Choose a backup folder before replacing the current location.")
+        if not path and require_folder:
+            raise AppError("Choose a backup folder to continue the fetch.")
+        if path:
+            DiskVaultController(path).initialize()
+        if download_attachments is not None and type(download_attachments) is not bool:
+            raise AppError("Choose whether to download attachments.")
+        updated = replace(settings, backup_folder=str(path) if path else "", interval_minutes=minutes,
+                          download_attachments=settings.download_attachments if download_attachments is None else download_attachments)
+        if updated != settings:
+            store.save(updated)
+        return store.load()
+
+    def __init__(self, folder: str | Path):
+        if not str(folder).strip():
+            raise AppError("Choose a backup folder in the Disk card first.")
+        self.root = Path(folder).expanduser().absolute()
 
     def initialize(self):
         if self.root.is_symlink() or self.root.resolve() != self.root:
@@ -80,6 +110,7 @@ class BackupRepository:
             raise AppError("Another backup is running for this folder.") from exc
 
     def path(self, relative: str) -> Path:
+        """Return the absolute path to a file in the backup, ensuring it is safe."""
         posix = PurePosixPath(relative)
         if (not posix.parts or "\\" in relative or ":" in relative or posix.is_absolute()
             or any(p in (".", "..", ".git") for p in posix.parts)
@@ -90,7 +121,11 @@ class BackupRepository:
             raise AppError("Backup paths must not contain links or junctions.")
         return target
 
-    def read_manifest(self):
+    def read_manifest(self)->dict:
+        """
+        Read and return the backup manifest as a dictionary.
+        """
+        
         target = self.path(MANIFEST)
         if not target.exists():
             return {"version": 1, "account": None, "notes": {}}
@@ -111,7 +146,7 @@ class BackupRepository:
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             raise AppError("The backup manifest is invalid. Restore it from Git history before fetching.") from exc
 
-    def apply(self, snapshot: Snapshot) -> BackupResult:
+    def apply(self, snapshot: SnapshotModel) -> BackupResultModel:
         """Caller holds locked() for the entire fetch/apply cycle."""
         old = self.read_manifest()
         account = digest(snapshot.account.strip().lower().encode())
@@ -140,15 +175,19 @@ class BackupRepository:
             if mode not in (b"100644", b"100755") or file_digest(self.path(name), "sha256" if len(oid) == 64 else "sha1") != oid:
                 raise AppError("Backup files have uncommitted changes. Commit or restore them before fetching.")
 
-        result = BackupResult(skipped=snapshot.skipped, warnings=list(snapshot.warnings))
-        new_notes = {} if snapshot.complete and not snapshot.skipped else dict(old["notes"])
+        result = BackupResultModel(skipped=snapshot.skipped, warnings=list(snapshot.warnings))
+        can_delete = snapshot.complete and not snapshot.skipped
+        new_notes = {} if can_delete and snapshot.deleted_ids is None else dict(old["notes"])
+        if can_delete and snapshot.deleted_ids is not None:
+            for note_id in snapshot.deleted_ids:
+                new_notes.pop(note_id, None)
         staged_files = {}
         ids = set()
         paths = set()
         for note in snapshot.notes:
-            if note.id in ids:
+            if note.note_id in ids:
                 raise AppError("The source returned duplicate note identifiers. Backup was not changed.")
-            ids.add(note.id)
+            ids.add(note.note_id)
             file_hashes = {}
             if not note.files:
                 raise AppError("An empty note export was rejected.")
@@ -159,10 +198,10 @@ class BackupRepository:
                 paths.add(name.casefold())
                 staged_files[name] = source
                 file_hashes[name] = file_digest(source)
-            new_notes[note.id] = file_hashes
-            if note.id not in old["notes"]:
+            new_notes[note.note_id] = file_hashes
+            if note.note_id not in old["notes"]:
                 result.added += 1
-            elif file_hashes != old["notes"][note.id]:
+            elif file_hashes != old["notes"][note.note_id]:
                 result.updated += 1
         result.deleted = len(set(old["notes"]) - set(new_notes))
         all_paths = [name.casefold() for files in new_notes.values() for name in files]
@@ -226,3 +265,4 @@ class BackupRepository:
             rollback.cleanup()
         result.commit = git(self.root, "rev-parse", "--short", "HEAD").stdout.decode().strip()
         return result
+

@@ -8,8 +8,7 @@ This is a one-way backup; two-way synchronization is outside the current scope.
 
 ## Agent workflow and project records
 
-- At the start of each task, read this guide, [todo.md](todo.md), and
-  [changelog.md](changelog.md) before making changes. Use README.md for current
+- At the start of each task, read this guide, [todo.md](todo.md). Use README.md for current
   user-facing setup and behavior.
 - Treat todo.md as the source of truth for outstanding work. Update relevant
   entries when scope, blockers, or completion changes; add concrete follow-up
@@ -39,13 +38,20 @@ noninteractive. Cancel clears pending credentials while preserving saved steps.
 2. Choose a local backup folder; initialize Git if needed.
 3. Open the dashboard: account status, backup folder, last result, next scheduled
    fetch, and **Fetch now**. Returning users start here.
-4. Show the active operation in Tasks and fetch progress in Logs, then
+4. Show the active operation and its latest progress in Tasks, retain progress in Logs, then
    added/updated/deleted/skipped counts and local commit status. Offer retries for failures.
 
 The iCloud card provides login/logout. Folder and automatic fetch interval edits
 in the Disk card save automatically after a short typing pause.
 Expired sessions require reconnection; iCloud logout pauses fetching without
 removing backups. Prevent overlapping fetches.
+
+Tasks provides Pause/Resume and Cancel for an active fetch. Pause retains staging
+in the current process; cancellation discards the unfinished fetch. Check controls
+between requests and attachment chunks, and atomically stop accepting cancellation
+before applying the snapshot. Never interrupt local Git writes. Closing during a
+fetch requests cancellation and closes automatically after worker cleanup, or after
+an already-started local save finishes. An in-flight request must return first.
 
 ## Backup rules
 
@@ -81,13 +87,32 @@ removing backups. Prevent overlapping fetches.
   plus downloadable attachments. Per-note JSON sidecars are no longer written. Rich
   formatting, locked notes, and separate shared zones are not fully supported.
 - Scheduling runs only while the GUI window is open; `--once` supports external schedulers.
-- Separate authentication, retrieval, export, Git, application workflows, and desktop UI.
-- Dashboard uses PyEdifice components and hooks with immutable state snapshots.
-  The Qt-independent controller owns a single background executor and one named
-  active task. Deliver progress and task completions through queued Qt signals;
-  only the owner thread applies state updates and resumes pending fetches.
-  Never update Qt widgets from a worker thread. Verification codes may be visible
-  in GUI forms; passwords stay hidden and must never be logged.
+- Separate authentication, retrieval, export, backup workflows, and desktop UI.
+  `icloud_authentication_controller.py` owns sessions and credentials;
+  `disk_vault_controller.py` owns folder configuration, repository safety, files,
+  and Git history; `backup_controller.py` owns fetch orchestration, staging, cursor
+  caching, and recording results. Providers retrieve/export notes. Data models live
+  in `models.py`.
+- Dashboard creates its state with local `ed.use_state` hooks, grouped into account,
+  disk drafts, and fetch/scheduling responsibilities. There is no external dashboard
+  state object. The saved `ConfigModel` is separate from drafts and runtime state;
+  `BackupStatusStore` persists results in `backup-status.json` and preserves legacy
+  results from settings before their next save.
+- `ui/authentication.py` provides a reusable `AuthenticationComponent` with display
+  props and callbacks. It owns account/password/code drafts and has no access to
+  application state, stores, or controllers. Dashboard supplies iCloud-specific labels.
+- Keep one named active operation and reserve it before the next render to prevent
+  overlapping actions. `task_manager.py` owns the single executor, reservation,
+  completion, and shutdown independently of Qt. `ui/tasks.py` adapts it to hooks,
+  delivers progress/results through the Qt/asyncio loop, and exposes the active task
+  for the Tasks card.
+  `fetch_control.py` owns cooperative pause/cancel checkpoints and the local-save
+  boundary. Paused fetches retain the task reservation and repository lock.
+  Never update hooks or Qt widgets from worker threads. A Qt event filter requests
+  safe fetch shutdown on close; other active operations still block closing.
+  Unmount cancels paused/running fetches, waits for workers, and clears credentials.
+  Verification codes may be visible in GUI forms; passwords stay hidden and must
+  never be logged.
 - Test completeness, filenames, attachments, repeat backups, and failure recovery.
 - Update this guide as decisions are made; document setup and installer commands.
 - See [todo.md](todo.md) for outstanding work and [changelog.md](changelog.md)

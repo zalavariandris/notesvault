@@ -4,64 +4,56 @@ Track outstanding work here. Check off items only when implementation and releva
 verification are complete. Completed changes belong in [changelog.md](changelog.md).
 Backlog entries do not authorize work outside the current user request.
 
-- [x] Review whether `EXPORT_VERSION` is necessary: retain it to invalidate cached
-      exports after format/support changes even when the iCloud cursor is unchanged.
-      Fixed the outdated monkeypatch target; all five cache service tests pass.
-- [x] Remove GitHub publishing code, settings, forms, and tests; retain local Git
-      history. Existing settings migrate without losing the backup folder.
-- [x] Keep iCloud login and verification inside `ICloudComponent`, including
-      saved-credential reconnection, cancellation, and disconnect controls.
-- [x] Review and refactor the codebase, remove redundant code and obsolete tests,
-      then review again. Removed the unused account form, stale imports, and
-      credential debug output; fixed demo exports and unsafe empty/dot paths.
-- [x] Fix the demo provider's missing `write_export` import; local commit and
-      staging cleanup are covered by the replacement demo service test.
-- [x] Remove UI interaction tests and their pytest-asyncio dependency. Keep logic
-      tests for the controller, authentication, configuration, exports, and Git.
+## Export coverage
 
-## Desktop and task management
-- [x] Reflect the current two locations: iCloud source and local disk/Git backups.
-- [x] Replace Textual with a PyEdifice/Qt GUI using reactive state snapshots,
-  background operations, and synthetic desktop smoke checks.
-- [x] Move account setup into PyEdifice forms. Login reuses saved credentials;
-  Fetch prompts for a missing folder and resumes after setup.
-- [x] Automatically save folder and interval edits after a typing pause; retain
-  saved values on validation failure and save pending edits before fetching.
-- [x] Refactor controller task management into a Qt-independent workflow layer
-  and a small Qt adapter. Use one named active task, per-task completion context,
-  queued notifications, and explicit continuation after successful setup.
-- [x] Add `TasksViewerComponent` to show the active operation.
+- [x] by default do not download attachments. add an option to the method to do so, expose that to the UI.
+- [ ] Preserve richer note formatting in Markdown.
+- [ ] Investigate separate shared zones and locked notes; report unsupported content
+  without treating it as deleted.
+- [ ] skip staging, and save markdown files directly to the vault's folder.
+- [ ] set the notes name formatting: <YYYY-MN-DD>-<NOTE-TITLE>-[<NOTEID>]
 
 ## Backup efficiency
 
-- [x] Reuse local exports when the entire iCloud sync cursor is unchanged, with
-  local integrity checks and cache invalidation after export-format changes.
 - [ ] Avoid downloading unchanged notes. Evaluate PyiCloud sync cursors and note
   summary metadata; retain unchanged exports, handle confirmed deletions, and fall
   back to a full scan when a cursor is invalid. Persist cursors only after a
   successful local backup. Cover failures, skipped notes, and export-format changes.
 
-## Export coverage
+## Major Refactor
 
-- [ ] Preserve richer note formatting in Markdown.
-- [ ] Investigate separate shared zones and locked notes; report unsupported content
-  without treating it as deleted.
+- [x] Decouple task management from Dashboard with a Qt-independent task manager
+      and a UI lifecycle hook.
+- [x] Show the active task in the dashboard Tasks card.
+- [x] Show the active task's latest progress in Tasks, retain its history in Logs,
+      and clear progress on completion or failure. Verified with a synthetic
+      desktop smoke check and task-manager logic tests.
+- [x] Replace iCloudComponent with a reusable AuthenticationComponent that receives
+      display props and callbacks without access to application state.
+- [x] Create dashboard state in local hooks inside the widget; remove the separate
+      DashboardState object.
+- [x] Keep ConfigModel limited to saved preferences; separate disk drafts, runtime
+      state, and persisted backup results, preserving legacy results automatically.
+- [x] Group state and actions by iCloud authentication, disk configuration, and
+      fetch/backup responsibilities.
+- [x] Separate authentication, disk/Git operations, backup orchestration, and task
+      execution; repair imports and retain noninteractive CLI workflows.
 
-## Verification and distribution
+Verified with logic tests, runtime checks, and synthetic desktop backup and
+authentication smoke checks. See [changelog.md](changelog.md) for details.
 
-- [x] Resolve the documented `setup.bat` workflow. We dont want that anymore.
-  Update the setup instructions to the supported commands.
-- [x] Verify the cleanup with 47 passing logic tests, `--demo --once`, `--check`,
-  dependency sync/lock checks, and synthetic desktop fetch/autosave smoke checks.
-  Restore Rich as a runtime dependency required by PyiCloud's Notes imports.
+## Manual verification
 
-## Investigation notes
+- [ ] Verify sign-in, code-based 2FA, session expiry/reconnection, and fetching with
+      a live iCloud account, including pause/resume and cancellation during downloads.
+      Current checks use synthetic data and sessions.
 
-- Per-note incremental fetching remains open: verify attachment-only and folder
-  changes before trusting the note-filtered changes feed. Changed cursors currently
-  trigger a full fetch. The cache is saved only after a complete local backup.
-- PyiCloud 2.7.0 `get()` returns decoded text and sets HTML to None. Rich exports
-  need a separate rendering path and conversion tests.
-- Notes enumeration targets the default Notes zone and Note records; shared zones
-  and PasswordProtectedNote discovery need additional work. Existing locked-note
-  failures defer deletions. Live-account verification has not been performed.
+## Fetch controls
+
+- [x] Add cooperative Pause/Resume and Cancel in Tasks, with checkpoints during
+      retrieval and attachment streaming. Preserve existing backups, cache, and
+      status on cancellation; finish any already-started local save safely.
+- [x] Closing during a fetch requests cancellation and closes automatically after
+      cleanup; also handle closing or unmounting while paused. Verified with logic
+      tests and synthetic desktop checks for resume, cancellation/retry, and closing
+      during running, paused, and saving stages.

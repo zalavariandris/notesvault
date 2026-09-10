@@ -4,12 +4,12 @@ from types import SimpleNamespace
 import pytest
 
 from notesvault.models import AppError
-from notesvault.providers import ICloudProvider
+from notesvault.icloud_notes_provider import ICloudNotesProvider
 
 
 def test_frontmatter_preserves_metadata_and_body(tmp_path):
     import json
-    from notesvault.providers.utils import write_export
+    from notesvault.provider_utils import write_export
 
     title = 'A "title": # tag\n---\nUnicode \u2601'
     exported = write_export(tmp_path, "001", title, "# Body\r\n\r\nText", "Notes", "folder", None, [])
@@ -42,10 +42,7 @@ class Notes:
 
 
 def provider(tmp_path, notes):
-    instance = ICloudProvider(tmp_path)
-    instance.account = "test"
-    instance.api = SimpleNamespace(notes=notes, requires_2fa=False, requires_2sa=False)
-    return instance
+    return ICloudNotesProvider(SimpleNamespace(notes=notes), "test")
 
 
 def test_full_scan_exports(tmp_path):
@@ -90,7 +87,7 @@ def test_preview_only_attachment_is_not_backed_up_as_original(tmp_path):
             note = super().get(*args, **kwargs)
             note.attachments = [SimpleNamespace(download_url=None)]
             return note
-    snapshot = provider(tmp_path, PreviewOnly()).fetch(tmp_path / "stage", lambda _: None)
+    snapshot = provider(tmp_path, PreviewOnly()).fetch(tmp_path / "stage", lambda _: None, download_attachments=True)
     assert snapshot.skipped == 1
     assert not snapshot.notes
 
@@ -103,7 +100,7 @@ def test_original_attachment_stream_is_preserved(tmp_path):
                 download_url="https://example.invalid/original", size=6,
                 stream=lambda **kwargs: iter([b"abc", b"def"]))]
             return note
-    snapshot = provider(tmp_path, WithAttachment()).fetch(tmp_path / "stage", lambda _: None)
+    snapshot = provider(tmp_path, WithAttachment()).fetch(tmp_path / "stage", lambda _: None, download_attachments=True)
     attachment_path = next(path for name, path in snapshot.notes[0].files.items() if name.startswith("attachments/"))
     assert attachment_path.read_bytes() == b"abcdef"
 
@@ -117,4 +114,39 @@ def test_truncated_attachment_aborts(tmp_path):
                 stream=lambda **kwargs: iter([b"abc"]))]
             return note
     with pytest.raises(AppError, match="incomplete"):
-        provider(tmp_path, Truncated()).fetch(tmp_path / "stage", lambda _: None)
+        provider(tmp_path, Truncated()).fetch(tmp_path / "stage", lambda _: None, download_attachments=True)
+
+
+@pytest.mark.parametrize("point", ["listing", "note", "attachment", "network_error"])
+def test_cancel_during_retrieval_never_returns_partial_snapshot(tmp_path, point):
+    from notesvault.fetch_control import FetchCancelled, FetchControl
+
+    control = FetchControl()
+    consumed = []
+    class CancellableNotes(Notes):
+        def iter_all(self):
+            if point == "listing":
+                control.cancel()
+            yield from super().iter_all()
+            consumed.append("second page")
+        def get(self, *args, **kwargs):
+            if point in ("note", "network_error"):
+                control.cancel()
+            if point == "network_error":
+                raise RuntimeError("synthetic timeout")
+            note = super().get(*args, **kwargs)
+            if point == "attachment":
+                def chunks(**kwargs):
+                    yield b"first"
+                    control.cancel()
+                    yield b"second"
+                    consumed.append("third chunk")
+                note.attachments = [SimpleNamespace(id="attachment", filename="synthetic.bin",
+                    download_url="https://example.invalid/original", size=None, stream=chunks)]
+            return note
+    with pytest.raises(FetchCancelled):
+        provider(tmp_path, CancellableNotes()).fetch(tmp_path / "stage", lambda _: None, control=control,
+                                                  download_attachments=True)
+    if point == "listing":
+        assert "second page" not in consumed
+    assert "third chunk" not in consumed

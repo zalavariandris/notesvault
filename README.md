@@ -38,6 +38,13 @@ single backup, or `--check` to verify runtime imports, Git, and credential stora
 Demo backups are temporary and removed on exit. PyEdifice uses PySide6/Qt;
 `uv sync --extra dev` installs the desktop dependencies.
 Rich is also installed because PyiCloud 2.7.0 imports it in its Notes renderer.
+
+The dashboard owns local hook state and groups actions around authentication, disk
+configuration, and fetching. A reusable authentication form receives display values
+and callbacks. `TaskManager` runs one background operation at a time; its UI hook
+delivers progress/results and shows the operation in Tasks. Authentication, disk/Git
+management, and backup orchestration have separate controllers. Run logic tests with
+`.venv/Scripts/python.exe -m pytest` and use synthetic desktop smoke checks for UI changes.
 The app does not use terminal authentication prompts.
 
 ## Build a Windows executable
@@ -61,8 +68,19 @@ Output: `dist\notesvault.exe`. Git must still be on PATH. The dashboard opens in
    if iCloud is disconnected, sign-in is requested as well.
 3. Change the folder or interval in the Disk card. Edits save automatically after
    a short typing pause; invalid values leave the saved settings intact.
-4. Tasks shows the current operation. Results and errors appear in Logs.
-   Close the window to quit; active operations must finish first.
+4. Tasks shows the current operation and its latest progress, including the current
+   note number during downloads. Progress history, results, and errors appear in Logs.
+   Use **Pause fetch**, **Resume fetch**, or **Cancel fetch** in Tasks to control a download.
+   Closing during a fetch cancels it and closes the window automatically after cleanup.
+
+Pause and cancellation take effect between requests and attachment chunks; a request
+already in progress must return first. Pause retains the current download so Resume
+can continue it while the window stays open. Cancel discards the unfinished fetch,
+preserving existing exports, Git history, the download cache, and the last result.
+You can start another fetch afterward; automatic fetching resumes at the next interval.
+Once the local save starts, Pause and Cancel are disabled so Git writes can finish
+safely. A close request waits for that save, then closes automatically. Other active
+operations, such as sign-in and settings saves, must finish before closing.
 
 Automatic fetching runs while the GUI window is open; set the interval to `0` for manual
 backups. Use `--once` with an external scheduler after connecting in the dashboard.
@@ -98,6 +116,11 @@ Settings and sessions use the per-user `NotesVault` data directory (`--data-dir`
 overrides it). Passwords use OS credential storage. Optional `.env`
 defaults must not contain secrets or be committed.
 
+`settings.json` stores the account email, backup folder, and fetch interval.
+The last backup timestamp and result are stored separately in `backup-status.json`.
+Existing results are read from the old settings file and preserved automatically
+before the next settings save. Backup files and Git history need no migration.
+
 GitHub publishing has been removed. Existing settings still load; retired GitHub
 options disappear on the next save. Local backups and Git history are preserved.
 Any previously saved GitHub token remains unused in the OS credential store and
@@ -119,6 +142,6 @@ existing exports are reused without downloading. Local edits and Git state are
 still checked. Changed cursors trigger a full fetch. The disposable cache in
 `.git/notesvault-fetch.json` is updated only after the local backup succeeds;
 missing or invalid caches and export-format changes trigger a full fetch.
-The internal `EXPORT_VERSION` in `src/notesvault/providers/utils.py` must be
+The internal `EXPORT_VERSION` in `src/notesvault/provider_utils.py` must be
 incremented when export content or supported content changes, so unchanged iCloud
 notes are re-exported using the updated format.

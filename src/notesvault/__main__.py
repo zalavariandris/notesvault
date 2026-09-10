@@ -1,31 +1,27 @@
-import argparse
+﻿import argparse
 import logging
-from dataclasses import replace
-from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from dotenv import load_dotenv
 
-from .config import ConfigStore, SecretStore
-from .models import AppError
-from .providers import DemoProvider, ICloudProvider
-from .service import run_backup
+from .backup_controller import fetch_backup
+from .config_store import ConfigStoreController
+from .demo_provider import DemoProvider
+from .icloud_authentication_controller import ICloudAuthenticationController
+from .icloud_notes_provider import ICloudNotesProvider
+from .icloud_secret_store import SecretStoreController
+from .models import AppError, ConfigModel
 
-def run_gui(config_store: ConfigStore, is_demo: bool = False):
+
+def run_gui(config_store: ConfigStoreController, is_demo: bool = False):
     from PySide6.QtWidgets import QApplication
     import edifice as ed
-    from .ui.controller import NotesVaultController
     from .ui.dashboard import Dashboard
 
     application = QApplication.instance() or QApplication([])
-    controller = NotesVaultController(config_store, is_demo=is_demo)
-    gui = ed.App(Dashboard(controller), qapplication=application)
-    controller.timer.start()
-    try:
-        gui.start()
-    finally:
-        controller.cleanup()
+    ed.App(Dashboard(config_store, is_demo=is_demo), qapplication=application).start()
+
 
 def main():
     parser = argparse.ArgumentParser(description="Back up iCloud Notes to local Git with a PyEdifice desktop dashboard.")
@@ -44,37 +40,31 @@ def main():
             from pyicloud.services.notes.service import NotesService
             subprocess.run(["git", "--version"], check=True,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            SecretStore().backend()
+            SecretStoreController().backend()
             assert callable(Dashboard) and callable(PyiCloudService) and callable(NotesService.iter_all)
         except Exception:
             print("Runtime check failed. Verify Git and OS credential-store availability.")
             raise SystemExit(1) from None
         print("Runtime imports OK: PyEdifice/Qt, PyiCloud Notes, and OS credential backend. No account accessed.")
         return
+
     load_dotenv(Path.cwd() / ".env", override=False)
     demo_directory = TemporaryDirectory(prefix="apple-notes-demo-") if args.demo else None
+    authentication = None
     try:
-        config_store = ConfigStore(Path(demo_directory.name) if demo_directory else args.data_dir)
+        store = ConfigStoreController(Path(demo_directory.name) if demo_directory else args.data_dir)
+        if args.demo:
+            store.save(ConfigModel(apple_id="demo", backup_folder=str(store.directory / "backups")))
         if not args.once:
-            run_gui(config_store, is_demo=args.demo)
+            run_gui(store, is_demo=args.demo)
             return
-        settings = config_store.load()
-        secrets = SecretStore()
         if args.demo:
             provider = DemoProvider()
-            settings = replace(settings, backup_folder=str(config_store.directory / "backups"))
         else:
-            provider = ICloudProvider(config_store.directory / "sessions")
-            if not settings.apple_id:
-                raise AppError("Run the dashboard first to connect iCloud and choose a backup folder.")
-            password = secrets.get(f"icloud:{settings.apple_id}")
-            ready = bool(password) and provider.login(settings.apple_id, password)
-            if not ready:
-                raise AppError("Reconnect iCloud in the dashboard before running --once.")
-        result = run_backup(provider, settings, config_store.directory / "staging", print)
-        settings = replace(settings, last_backup=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                           last_result=result.summary())
-        config_store.save(settings)
+            authentication = ICloudAuthenticationController(store, SecretStoreController())
+            authentication.login_saved()
+            provider = ICloudNotesProvider(authentication.session, authentication.account)
+        _, result = fetch_backup(store, provider, print)
         print(result.summary())
         for warning in result.warnings:
             print(warning)
@@ -87,6 +77,8 @@ def main():
         print(str(exc))
         raise SystemExit(1) from None
     finally:
+        if authentication:
+            authentication.clear()
         if demo_directory:
             demo_directory.cleanup()
 

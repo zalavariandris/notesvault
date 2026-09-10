@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from notesvault.backup import BackupRepository, MANIFEST, git
-from notesvault.models import AppError, Snapshot
-from notesvault.providers.utils import write_export
+from notesvault.disk_vault_controller import DiskVaultController, MANIFEST, git
+from notesvault.models import AppError, SnapshotModel
+from notesvault.provider_utils import write_export
 
 
 def note(stage, note_id="one", title="A note", text="original", attachments=None):
@@ -13,11 +13,11 @@ def note(stage, note_id="one", title="A note", text="original", attachments=None
 
 def apply(repo, notes, **kwargs):
     with repo.locked():
-        return repo.apply(Snapshot("account", notes, **kwargs))
+        return repo.apply(SnapshotModel("account", notes, **kwargs))
 
 
 def test_backup_repeat_rename_delete_and_history(tmp_path):
-    repo = BackupRepository(tmp_path / "backup")
+    repo = DiskVaultController(tmp_path / "backup")
     original = note(tmp_path / "stage")
     assert apply(repo, [original]).added == 1
     head = git(repo.root, "rev-parse", "HEAD").stdout
@@ -33,7 +33,7 @@ def test_backup_repeat_rename_delete_and_history(tmp_path):
 
 
 def test_legacy_sidecar_migrates_and_remains_in_history(tmp_path):
-    repo = BackupRepository(tmp_path / "backup")
+    repo = DiskVaultController(tmp_path / "backup")
     original = note(tmp_path / "legacy")
     md = next(iter(original.files))
     original.files[md].write_text("original\n", encoding="utf-8")
@@ -53,7 +53,7 @@ def test_legacy_sidecar_migrates_and_remains_in_history(tmp_path):
 
 @pytest.mark.parametrize("complete,skipped", [(False, 0), (True, 1)])
 def test_partial_snapshot_retains_missing_notes(tmp_path, complete, skipped):
-    repo = BackupRepository(tmp_path / "backup")
+    repo = DiskVaultController(tmp_path / "backup")
     original = note(tmp_path / "stage")
     apply(repo, [original])
     result = apply(repo, [], complete=complete, skipped=skipped)
@@ -62,7 +62,7 @@ def test_partial_snapshot_retains_missing_notes(tmp_path, complete, skipped):
 
 
 def test_local_edits_are_not_overwritten(tmp_path):
-    repo = BackupRepository(tmp_path / "backup")
+    repo = DiskVaultController(tmp_path / "backup")
     original = note(tmp_path / "stage")
     apply(repo, [original])
     target = repo.root / next(iter(original.files))
@@ -73,7 +73,7 @@ def test_local_edits_are_not_overwritten(tmp_path):
 
 
 def test_unrelated_files_not_committed_and_staged_changes_rejected(tmp_path):
-    repo = BackupRepository(tmp_path / "backup")
+    repo = DiskVaultController(tmp_path / "backup")
     repo.initialize()
     (repo.root / "private.txt").write_text("unrelated")
     apply(repo, [note(tmp_path / "stage")])
@@ -85,14 +85,14 @@ def test_unrelated_files_not_committed_and_staged_changes_rejected(tmp_path):
 
 
 def test_account_switch_blocked(tmp_path):
-    repo = BackupRepository(tmp_path / "backup")
+    repo = DiskVaultController(tmp_path / "backup")
     apply(repo, [note(tmp_path / "stage")])
     with repo.locked(), pytest.raises(AppError, match="another iCloud account"):
-        repo.apply(Snapshot("other", []))
+        repo.apply(SnapshotModel("other", []))
 
 
 def test_duplicate_ids_and_unrelated_collision_blocked(tmp_path):
-    repo = BackupRepository(tmp_path / "backup")
+    repo = DiskVaultController(tmp_path / "backup")
     first = note(tmp_path / "stage")
     with pytest.raises(AppError, match="duplicate"):
         apply(repo, [first, first])
@@ -105,7 +105,7 @@ def test_duplicate_ids_and_unrelated_collision_blocked(tmp_path):
 
 
 def test_attachment_change_and_unicode_paths(tmp_path):
-    repo = BackupRepository(tmp_path / "backup")
+    repo = DiskVaultController(tmp_path / "backup")
     original = note(tmp_path / "stage", title="Árvíztűrő [☁] / test",
                     attachments=[("image", "CON.jpg", b"old")])
     apply(repo, [original])
@@ -116,17 +116,17 @@ def test_attachment_change_and_unicode_paths(tmp_path):
 
 
 def test_commit_failure_restores_files_and_index(tmp_path, monkeypatch):
-    import notesvault.backup as backup
-    repo = BackupRepository(tmp_path / "backup")
+    import notesvault.disk_vault_controller as disk_vault_controller
+    repo = DiskVaultController(tmp_path / "backup")
     original = note(tmp_path / "stage")
     apply(repo, [original])
     prior = (repo.root / MANIFEST).read_bytes()
-    real_git = backup.git
+    real_git = disk_vault_controller.git
     def fail_commit(root, *args, **kwargs):
         if "commit" in args:
             raise AppError("simulated commit failure")
         return real_git(root, *args, **kwargs)
-    monkeypatch.setattr(backup, "git", fail_commit)
+    monkeypatch.setattr(disk_vault_controller, "git", fail_commit)
     with pytest.raises(AppError, match="simulated"):
         apply(repo, [note(tmp_path / "stage2", title="different")])
     assert (repo.root / MANIFEST).read_bytes() == prior
@@ -136,11 +136,11 @@ def test_commit_failure_restores_files_and_index(tmp_path, monkeypatch):
 @pytest.mark.parametrize("path", ["", ".", "../outside", "notes/../../outside", "/absolute", "notes\\escape", "notes/a:stream", ".git/config"])
 def test_unsafe_paths_rejected(tmp_path, path):
     with pytest.raises(AppError):
-        BackupRepository(tmp_path).path(path)
+        DiskVaultController(tmp_path).path(path)
 
 
 def test_repository_lock_blocks_second_instance(tmp_path):
-    repo = BackupRepository(tmp_path / "backup")
+    repo = DiskVaultController(tmp_path / "backup")
     with repo.locked(), pytest.raises(AppError, match="Another backup"):
-        with BackupRepository(repo.root).locked():
+        with DiskVaultController(repo.root).locked():
             pass
