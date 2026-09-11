@@ -11,4 +11,4 @@ a = Analysis(["launcher.py"], pathex=["src"], binaries=binaries, datas=datas,
              hiddenimports=hiddenimports)
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, a.binaries, a.datas, name="notesvault-gui",
-          console=True, debug=False, strip=False, upx=False)
+          console=False, debug=False, strip=False, upx=False)

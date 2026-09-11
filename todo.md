@@ -5,7 +5,9 @@ verification are complete. Completed changes belong in [changelog.md](changelog.
 Backlog entries do not authorize work outside the current user request.
 
 ## Export coverage
-
+- [ ] add support for proper encoding. 
+      the characters encoding in the frontmatter has issues.
+      eg: title: "\u00c9ttermek" it should be Éttermek. 
 - [x] by default do not download attachments. add an option to the method to do so, expose that to the UI.
 - [x] Preserve richer note formatting in Markdown. Verified converter behavior,
       provider integration, readable fallback, and export-version invalidation.
