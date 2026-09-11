@@ -73,9 +73,9 @@ class ICloudAuthenticationController:
         """Reconnect for --once without requesting a verification code or prompting."""
         account = self.store.load().apple_id
         if not account:
-            raise AppError("Run the dashboard first to connect iCloud and choose a backup folder.")
+            raise AppError("Open the desktop or --tui to connect iCloud and choose a backup folder.")
         if not self.login(account, interactive=False):
-            raise AppError("Reconnect iCloud in the dashboard before running --once.")
+            raise AppError("Reconnect iCloud in the desktop or --tui before running --once.")
 
     def verify(self, code: str) -> None:
         if self._api is None or not self._password:

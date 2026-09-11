@@ -81,7 +81,7 @@ class DiskVaultController:
 
     def __init__(self, folder: str | Path):
         if not str(folder).strip():
-            raise AppError("Choose a backup folder in the Backup card first.")
+            raise AppError("Choose a backup folder in settings first.")
         self.root = Path(folder).expanduser().absolute()
 
     def initialize(self):

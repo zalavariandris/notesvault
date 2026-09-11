@@ -30,8 +30,14 @@ This is a one-way backup; two-way synchronization is outside the current scope.
 Launch opens a tall, scrolling PyEdifice dashboard. Login uses saved credentials or
 opens a focused sign-in and verification popup. Fetch prompts for a missing backup folder
 and resumes after prerequisites are completed. Account and backup-folder forms stay in
-the GUI; there are no Rich or terminal prompts. Demo, checks, and `--once` remain
+the GUI by default; `--tui` selects a separate Rich terminal adapter. Checks and `--once` remain
 noninteractive. Cancel clears pending credentials while preserving saved steps.
+
+The Rich TUI follows [docs/ux_flow.excalidraw](docs/ux_flow.excalidraw): folder setup,
+saved credentials, password/verification fallback, then backup dashboard. Its
+forms use terminal prompts; `--demo --tui` uses synthetic data. It supports
+settings, login/logout, scheduling while idle, bounded/searchable logs, and safe
+fetch pause/resume/cancel/exit. Use one interface per settings directory at a time.
 
 1. Connect iCloud with Apple Account email and password, including code-based
    two-factor authentication when required. Store passwords in the OS credential store.
@@ -83,6 +89,9 @@ an already-started local save finishes. An in-flight request must return first.
   tests. Use a synthetic demo smoke check for desktop changes. Packaging uses
   PySide6 Qt hooks.
 - See README.md for setup, exports, limitations, and Windows executable builds.
+- `notesvault.spec` builds the desktop-default executable; `notesvault-tui.spec`
+  uses `launcher_tui.py` to build `dist/notesvault-tui.exe` with a console and TUI
+  default. Both retain explicit `--once` and `--check` modes.
 - On Windows, use `uv sync --extra dev` and
   `.venv/Scripts/python.exe -m notesvault --check` with uv and Git on PATH.
 - Current exports preserve supported rich text and metadata in Markdown with YAML
@@ -91,7 +100,12 @@ an already-started local save finishes. An in-flight request must return first.
   fidelity; plain-text fallback is reported. Locked notes and separate shared zones
   are unsupported. The fixed Notes-zone adapter retains unconfirmed absences;
   only explicit tombstones from complete, unskipped fetches permit deletions.
-- Scheduling runs only while the GUI window is open; `--once` supports external schedulers.
+- Scheduling runs while the chosen GUI/TUI dashboard is open; `--once` supports external schedulers.
+- `application.py` shares setup prerequisites, configuration operations and provider
+  selection between GUI and TUI. UI adapters own forms and event loops; controllers
+  and task/fetch logic must not import Qt or Rich. `tui.py` renders with Rich and
+  delegates fetches to TaskManager. `scripts/smoke_desktop.py` is an opt-in smoke
+  check outside the Qt-free automated logic suite.
 - Separate authentication, retrieval, export, backup workflows, and desktop UI.
   `icloud_authentication_controller.py` owns sessions and credentials;
   `disk_vault_controller.py` owns folder configuration, repository safety, files,
@@ -123,7 +137,8 @@ an already-started local save finishes. An in-flight request must return first.
   Logs shows the latest 200 messages, newest first, with Search, Copy, and Clear;
   clearing logs never clears the persisted backup result. Render user data as plain
   text, including account names, errors, and logs.
-- `ui/sign_in.py` hosts the authentication form in a modal WindowPopView. Success
+- `ui/sign_in.py` hosts the authentication form in a modal WindowPopView nested
+  inside the dashboard's root Window (Edifice components require one root). Success
   unmounts it without cancelling completed authentication; Cancel, Escape, and
   window close cancel pending setup when idle. Closing is blocked during an active
   authentication request. Block configuration edits and scheduling while it is open.

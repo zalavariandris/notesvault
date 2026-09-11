@@ -61,6 +61,12 @@ authentication smoke checks. See [changelog.md](changelog.md) for details.
 
 ## UI refinement
 
+- [x] Fix the missing Login popup, separate shared application operations from UI
+      adapters, and implement a Rich TUI following the UX drawing. Plan and project
+      review: [INTERFACE_PLAN.md](INTERFACE_PLAN.md). Verified 121 logic tests,
+      runtime checks, a synthetic desktop popup smoke, and Windows terminal demo
+      fetch/repeat/exit. Live-account and packaged/cross-platform checks remain below.
+
 - [x] Implement [UI_PLAN.md](UI_PLAN.md): reusable presentation components, a tall
       dashboard, improved Tasks and searchable logs, and a focused sign-in popup.
       Verified 111 logic tests, runtime/demo checks, and synthetic desktop flows
@@ -68,6 +74,10 @@ authentication smoke checks. See [changelog.md](changelog.md) for details.
       cancellation, reconnection, and setup continuation.
 
 ## Manual verification
+
+- [ ] Verify the Rich TUI on Linux/macOS terminals and the packaged Windows
+      executable. Source-level Windows terminal and synthetic checks are covered
+      by the interface implementation; packaged and other-platform checks remain.
 
 - [ ] Verify sign-in, code-based 2FA, session expiry/reconnection, and fetching with
       a live iCloud account, including pause/resume and cancellation during downloads.

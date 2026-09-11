@@ -17,17 +17,19 @@ from .models import AppError, ConfigModel
 def run_gui(config_store: ConfigStoreController, is_demo: bool = False):
     from PySide6.QtWidgets import QApplication
     import edifice as ed
-    from .ui.dashboard import Dashboard
+    from .gui.dashboard import Dashboard
 
     application = QApplication.instance() or QApplication([])
     ed.App(Dashboard(config_store, is_demo=is_demo), qapplication=application).start()
 
 
-def main():
+def main(*, default_tui=False):
     parser = argparse.ArgumentParser(description="Back up iCloud Notes to local Git with a PyEdifice desktop dashboard.")
     parser.add_argument("--demo", action="store_true", help="Use synthetic notes in an isolated temporary directory")
-    parser.add_argument("--once", action="store_true", help="Fetch once using saved settings and OS credentials")
-    parser.add_argument("--check", action="store_true", help="Check runtime dependencies without accessing an account")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--once", action="store_true", help="Fetch once using saved settings and OS credentials")
+    mode.add_argument("--check", action="store_true", help="Check runtime dependencies without accessing an account")
+    mode.add_argument("--tui", action="store_true", help="Open the interactive Rich terminal dashboard")
     parser.add_argument("--data-dir", type=Path, help="Override per-user configuration/session storage")
     args = parser.parse_args()
     # Third-party log messages may include note titles or authentication details.
@@ -35,7 +37,7 @@ def main():
     if args.check:
         import subprocess
         try:
-            from .ui.dashboard import Dashboard
+            from .gui.dashboard import Dashboard
             from pyicloud import PyiCloudService
             from pyicloud.services.notes.service import NotesService
             subprocess.run(["git", "--version"], check=True,
@@ -55,6 +57,10 @@ def main():
         store = ConfigStoreController(Path(demo_directory.name) if demo_directory else args.data_dir)
         if args.demo:
             store.save(ConfigModel(apple_id="demo", backup_folder=str(store.directory / "backups")))
+        if args.tui or (default_tui and not args.once):
+            from .tui.tui import run_tui
+            run_tui(store, is_demo=args.demo)
+            return
         if not args.once:
             run_gui(store, is_demo=args.demo)
             return

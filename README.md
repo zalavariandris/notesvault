@@ -1,6 +1,6 @@
 ﻿# Notes Vault
 
-A PyEdifice desktop GUI that backs up iCloud Notes to a local Git repository.
+A PyEdifice desktop GUI and Rich terminal UI that back up iCloud Notes to a local Git repository.
 Backups stay on your disk with local Git history. iCloud notes are never modified.
 
 See [todo.md](todo.md) for planned work and [changelog.md](changelog.md) for changes.
@@ -37,7 +37,7 @@ Add `--demo` to try synthetic notes without an account, `--demo --once` to test 
 single backup, or `--check` to verify runtime imports, Git, and credential storage.
 Demo backups are temporary and removed on exit. PyEdifice uses PySide6/Qt;
 `uv sync --extra dev` installs the desktop dependencies.
-Rich is also installed because PyiCloud 2.7.0 imports it in its Notes renderer.
+Rich powers the optional terminal UI and PyiCloud's Notes renderer.
 
 The dashboard owns local hook state and groups actions around authentication, disk
 configuration, and fetching. Reusable account, backup, Tasks, and Logs cards receive
@@ -46,7 +46,10 @@ A separate sign-in popup hosts the reusable authentication form. `TaskManager` r
 delivers progress/results and shows the operation in Tasks. Authentication, disk/Git
 management, and backup orchestration have separate controllers. Run logic tests with
 `.venv/Scripts/python.exe -m pytest` and use synthetic desktop smoke checks for UI changes.
-The app does not use terminal authentication prompts.
+The default desktop app does not use terminal authentication prompts.
+`application.py` shares configuration validation, fetch prerequisites, and provider
+selection between desktop and terminal adapters. The TUI imports no Qt modules;
+both interfaces reuse the authentication, backup, disk, and task controllers.
 
 Providers retrieve notes and convert their formatting; `provider_utils.py` builds
 export bytes without writing Markdown files. `BackupController` owns the fetch/save
@@ -61,10 +64,21 @@ Run on Windows:
 
 ```powershell
 uv sync --extra dev --extra exe
-.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm notesvault.spec
+.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm notesvault-gui.spec
 ```
 
 Output: `dist\notesvault.exe`. Git must still be on PATH. The dashboard opens in a separate native Qt window.
+
+Build the terminal executable with [notesvault-tui.spec](notesvault-tui.spec):
+
+```powershell
+.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm notesvault-tui.spec
+```
+
+Output: `dist\notesvault-tui.exe`. It opens the Rich TUI by default, with no
+`--tui` flag required. Run `dist\notesvault-tui.exe --demo` for synthetic data.
+Git must be on PATH. `--once` and `--check` remain available. Both executables
+use the same settings and credential store; run one interface at a time.
 
 ## Use
 
@@ -116,8 +130,40 @@ are checked again before starting a fetch and routed through reconnection.
 Completed settings are retained. **Disconnect iCloud** removes the saved password
 and local session, pauses fetching, and preserves backups.
 
-There are no terminal prompts. `--demo`, `--check`, and `--once` remain available;
+The desktop has no terminal prompts. `--demo`, `--check`, and `--once` remain available;
 `--once` requires saved credentials and reports when interactive reconnection is needed.
+
+## Rich terminal UI
+
+Run in an interactive terminal:
+
+```powershell
+.venv\Scripts\python.exe -m notesvault --tui
+# Synthetic account and temporary backups:
+.venv\Scripts\python.exe -m notesvault --demo --tui
+```
+
+The terminal follows [the UX flow](docs/ux_flow.excalidraw): configure the local
+folder, try saved credentials, request a masked password and verification code
+when needed, then show the backup dashboard. Setup failures can be retried;
+Ctrl+C cancels setup while retaining saved steps. Credentials use the same OS
+store as the desktop. Use one interface at a time with a given settings directory.
+
+Press **F** to fetch/retry, **S** for folder/interval/attachment settings, **L** to
+connect, **D** to disconnect, **H** to search the latest 200 logs, **X** to clear
+logs, or **Q** to quit. During a fetch, **P** pauses, **R** resumes, **C** cancels,
+and **Q** requests safe exit. A local save already in progress always finishes.
+Requests already in flight must return before cancellation takes effect.
+
+Automatic fetching runs while the terminal dashboard is open and idle; setup and
+settings prompts pause it. Interval `0` disables scheduling. Settings save when
+the form completes. The terminal shows backup counts, local commit status, and
+warnings using plain text. Redirected input/output is rejected; use `--once` for
+scripts. `--tui`, `--once`, and `--check` are mutually exclusive.
+
+`notesvault.exe` also accepts `--tui`; `notesvault-tui.exe` defaults to it. No settings or
+backup migration is required. See [INTERFACE_PLAN.md](INTERFACE_PLAN.md) for the
+implementation plan and review.
 
 ## Backups and limitations
 
@@ -168,6 +214,8 @@ can be removed there. Existing Git remotes are left untouched.
 
 Tests cover application workflows, authentication, settings, retrieval, exports,
 and local Git recovery without Qt widgets. Use `--demo` for a desktop smoke check.
+Run `.venv/Scripts/python.exe scripts/smoke_desktop.py` for the opt-in synthetic,
+offscreen popup check, separate from pytest. It uses no real account or OS secrets.
 
 ## Download caching
 

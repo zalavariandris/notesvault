@@ -52,7 +52,7 @@ class ICloudNotesProvider:
             retained = [note for note in previous or [] if note.note_id not in changes] if incremental else []
             result = SnapshotModel(account=self.account, notes=retained, deleted_ids=deleted, warnings=[scope_warning])
             if not download_attachments:
-                result.warnings.append("Attachment downloads are disabled. Enable Download attachments in the Backup card to include them.")
+                result.warnings.append("Attachment downloads are disabled. Enable Download attachments in settings to include them.")
             if retained:
                 progress(f"Reusing {len(retained)} unchanged notes.")
             locked = unavailable_count = formatting_fallbacks = 0

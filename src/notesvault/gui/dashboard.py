@@ -1,18 +1,12 @@
 ﻿"""Compose account, disk, and backup actions with dashboard-owned hook state."""
 import asyncio
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import edifice as ed
 
-from ..backup_controller import fetch_backup
+from ..application import Application
 from ..backup_status_store import BackupStatusStore
 from ..config_store import ConfigStoreController
-from ..demo_provider import DemoProvider
-from ..disk_vault_controller import DiskVaultController
-from ..icloud_authentication_controller import ICloudAuthenticationController
-from ..icloud_notes_provider import ICloudNotesProvider
-from ..icloud_secret_store import SecretStoreController
 from ..activity_log import append_entry
 from .cards import AccountCard, BackupCard, TaskCard, LogCard
 from .components import Text
@@ -22,8 +16,8 @@ from .tasks import use_tasks
 
 @ed.component
 def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
-    authentication = ed.use_memo(
-        lambda: ICloudAuthenticationController(config_store, SecretStoreController()), ())
+    application = ed.use_memo(lambda: Application(config_store, is_demo=is_demo), ())
+    authentication = application.authentication
     window_ref = ed.use_ref()
 
     # Saved preferences have their own hook; drafts and runtime values never enter it.
@@ -153,8 +147,8 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
     # Disk actions delegate validation, repository preparation, and saving.
     def save_settings(*, fetch_after=False):
         def operation(progress):
-            return DiskVaultController.save_configuration(
-                config_store, folder, interval, require_folder=pending_fetch or fetch_after,
+            return application.save_settings(
+                folder, interval, require_folder=pending_fetch or fetch_after,
                 download_attachments=attachments)
 
         def completed(saved):
@@ -186,7 +180,7 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
     def fetch_notes():
         if task_is_running() or setup_open:
             return False
-        if not config.backup_folder or not (Path(config.backup_folder).expanduser() / ".git").is_dir():
+        if application.prerequisite() == "folder":
             set_pending_fetch(True)
             set_folder_requested(True)
             # Also prepares a saved folder whose repository has not been initialized.
@@ -197,9 +191,7 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
             return connect()
 
         def operation(progress, control):
-            control.checkpoint()
-            provider = DemoProvider() if is_demo else ICloudNotesProvider(authentication.session, authentication.account)
-            return fetch_backup(config_store, provider, progress, control=control)
+            return application.fetch(progress, control)
 
         def completed(result):
             status, backup = result
@@ -259,7 +251,7 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
                      "Manual fetching" if not config.interval_minutes else "Automatic fetching paused until ready")
 
     with ed.Window(title="Notes Vault", _size_open=(520, 860)).register_ref(window_ref):
-        with ed.VBoxView(style={"padding": 16, "align": "top"}):
+        with ed.VScrollView(style={"padding": 16, "align": "top"}):
             # Text("Notes Vault", style={"padding": 16, "font-size": 26, "font-weight": "bold"})
             # Text("Apple Notes, with a local history.", style={"padding": 16, "margin-bottom": 14})
             AccountCard(
@@ -298,7 +290,8 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
                 entries=logs, 
                 on_clear=lambda: set_logs(()))
             
-    if auth_step in ("login", "verify"):
-        SignInWindow(account=authentication.account or config.apple_id, phase=auth_step,
+        # A component must have one root; popups occupy a slot inside that root.
+        if auth_step in ("login", "verify"):
+            SignInWindow(account=authentication.account or config.apple_id, phase=auth_step,
                         busy=busy, operation=active_task, error=error,
                         on_login=login, on_verify=verify, on_cancel=cancel_setup)

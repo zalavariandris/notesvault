@@ -6,6 +6,24 @@ Outstanding work is tracked in [todo.md](todo.md).
 
 ## Unreleased
 
+- Added `notesvault-tui.spec` and a dedicated launcher for `dist/notesvault-tui.exe`.
+  It opens the Rich interface by default and retains `--once` and `--check`.
+  Documented both Windows build commands; no settings migration is required.
+
+- Fixed Login failing to show its popup: SignInWindow now belongs to the
+  dashboard's single Edifice root. Restored the scrolling dashboard container.
+- Added `--tui`, a Rich terminal interface following the UX drawing, with folder
+  setup, saved-login fallback, masked password/2FA entry, settings, scheduling,
+  progress, searchable logs, retry, pause/resume/cancel, and safe exit. One-shot
+  and runtime checks remain noninteractive; incompatible mode flags are rejected.
+- Shared setup validation and provider selection through a UI-independent
+  application service. GUI and TUI retain the same credential and safe local-Git
+  controllers. Added interface logic coverage and an opt-in desktop popup smoke
+  script. No dependency, settings, or backup migration is required.
+- Verified 121 logic tests, runtime checks, desktop popup/verification smoke, and
+  Windows terminal demo fetch/repeat/exit. Cancelled terminal reconnection resets
+  scheduling, and fetch exit waits for protected local saves to finish.
+
 - Refined the desktop UI around reusable account, backup, Tasks, and Logs cards,
   shared styling, and plain-text labels. The dashboard opens at 520 × 860 in a
   scrolling column and fits narrow windows. Backup preferences show autosave state;
