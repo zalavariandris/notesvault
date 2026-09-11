@@ -67,7 +67,7 @@ class ICloudAuthenticationController:
             raise
         except Exception as exc:
             self.clear()
-            raise AppError("iCloud sign-in failed. Check credentials, iCloud web access, and any pending Apple terms.") from exc
+            raise exc
 
     def login_saved(self) -> None:
         """Reconnect for --once without requesting a verification code or prompting."""

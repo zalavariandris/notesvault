@@ -53,6 +53,7 @@ class TerminalUI:
     def __init__(self, application, console=None):
         self.app = application
         self.console = console or Console()
+        self.console = console or Console(width=80)
         self.tasks = TaskManager()
         self.logs = ()
         self.next_fetch = None
@@ -90,6 +91,7 @@ class TerminalUI:
                     needs_password = False
                 except AppError as exc:
                     self.report(exc)
+
             while needs_password:
                 self.console.print("Connect iCloud (Ctrl+C cancels)")
                 account = Prompt.ask("Apple Account email", default=account, console=self.console)
@@ -102,6 +104,7 @@ class TerminalUI:
                     self.report(exc)
                 finally:
                     password = ""
+
             while not ready:
                 code = Prompt.ask("Verification code (Ctrl+C cancels)", console=self.console)
                 try:
@@ -114,8 +117,10 @@ class TerminalUI:
                         return False
                 finally:
                     code = ""
+
             self.log("iCloud connected.")
             return True
+            
         finally:
             if not ready:
                 try:

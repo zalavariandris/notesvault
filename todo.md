@@ -4,6 +4,13 @@ Track outstanding work here. Check off items only when implementation and releva
 verification are complete. Completed changes belong in [changelog.md](changelog.md).
 Backlog entries do not authorize work outside the current user request.
 
+# TUI userflow
+- [ ] when connectin to icloud, and it fails, report a helpful error messages, 
+      and let the user try again.
+- [ ] also if we reached the fetch screen, but loose internet connection, 
+      then we also need to report helpful error messages to the user.
+
+
 ## Export coverage
 - [ ] add support for proper encoding. 
       the characters encoding in the frontmatter has issues.
