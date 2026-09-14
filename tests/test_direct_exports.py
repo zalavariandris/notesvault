@@ -13,6 +13,22 @@ from notesvault.models import AppError, SnapshotModel
 from notesvault.provider_utils import render_export, note_date, stable_id
 
 
+def test_frontmatter_preserves_unicode_and_escapes_yaml_delimiters(tmp_path):
+    title = 'Éttermek "quoted": \\ path\n---\n日本語 😀'
+    note = render_export('unicode', title, 'Body', 'Árvíztűrő', 'folder', None, [])
+    name, content = next(iter(note.files.items()))
+    text = content.decode('utf-8')
+    assert 'Éttermek' in text and '日本語 😀' in text and 'Árvíztűrő' in text
+    assert '\\u00c9' not in text
+    metadata = dict(line.split(': ', 1) for line in text.split('\n---\n')[0].splitlines()[1:])
+    assert json.loads(metadata['title']) == title
+    repo = DiskVaultController(tmp_path / 'backup')
+    with repo.locked():
+        assert repo.apply(SnapshotModel('test', [note])).added == 1
+        assert (repo.root / name).read_bytes() == content
+        assert repo.apply(SnapshotModel('test', [note])).commit == 'No changes'
+
+
 @pytest.mark.parametrize("timestamp,expected", [
     (None, "0000-00-00"), ("invalid", "0000-00-00"),
     ("2026-01-02T00:30:00+02:00", "2026-01-01"),

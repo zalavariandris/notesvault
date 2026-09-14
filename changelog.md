@@ -6,6 +6,29 @@ Outstanding work is tracked in [todo.md](todo.md).
 
 ## Unreleased
 
+- Refactored `__main__.py` into argument parsing, runtime checks, and one-shot
+  execution, with a smaller launch dispatcher and context-managed demo cleanup.
+  Production command helpers stay in `__main__.py`; automated tests live under `tests/`.
+  One-shot backups reuse the shared application service and always clear their
+  in-memory session. Explicit modes retain priority over launcher defaults.
+  Runtime failures identify the dependency check, Git checks have a timeout,
+  and local file-access failures report a safe error. No migration is required.
+  Verified 152 logic tests (including 20 CLI tests), runtime checks, and the
+  synthetic desktop smoke check.
+
+- Fixed TUI sign-in retries with safe, actionable errors for rejected credentials,
+  network failures, unavailable services, and account setup requirements.
+  Failed verification sessions can restart sign-in. Authentication failures during
+  fetch clear the in-memory connection and reopen sign-in after worker cleanup;
+  cancellation pauses scheduling, and successful reconnection offers fetch retry.
+  Existing backups and saved credentials are preserved.
+- Export frontmatter now keeps Unicode characters readable instead of ASCII
+  escape sequences. Incremented the export version so the next fetch refreshes
+  cached notes automatically. No manual settings or backup migration is required.
+- Verified the 132-test logic suite and an additional verification-restart test,
+  including synthetic TUI retries/reconnection, failure preservation, UTF-8 exports,
+  and repeat backups. Live iCloud verification remains outstanding in `todo.md`.
+
 - Added `notesvault-tui.spec` and a dedicated launcher for `dist/notesvault-tui.exe`.
   It opens the Rich interface by default and retains `--once` and `--check`.
   Documented both Windows build commands; no settings migration is required.

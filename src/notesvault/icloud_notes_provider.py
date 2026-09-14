@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from .models import AppError, SnapshotModel
+from .icloud_errors import ReconnectRequired, authentication_required
 from .fetch_control import FetchControl
 from . import provider_utils
 from .icloud_note_changes import read_changes, supports_incremental, expired_cursor, clear_metadata_cache
@@ -131,6 +132,8 @@ class ICloudNotesProvider:
             raise
         except Exception as exc:
             control.checkpoint()
+            if authentication_required(exc):
+                raise ReconnectRequired("Your iCloud session needs sign-in again. Existing backups were retained. Reconnect iCloud, then retry the fetch.") from exc
             raise AppError("iCloud fetch failed. Existing backups were retained. Check your connection or reconnect iCloud.") from exc
 
 

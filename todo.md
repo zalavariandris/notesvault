@@ -5,16 +5,16 @@ verification are complete. Completed changes belong in [changelog.md](changelog.
 Backlog entries do not authorize work outside the current user request.
 
 # TUI userflow
-- [ ] when connectin to icloud, and it fails, report a helpful error messages, 
-      and let the user try again.
-- [ ] also if we reached the fetch screen, but loose internet connection, 
-      then we also need to report helpful error messages to the user.
-
+- [x] Report helpful iCloud sign-in errors and allow retries, including restarting
+      failed verification sessions. Verified with synthetic controller/TUI tests.
+- [x] Handle credential/session failures during fetch by returning to sign-in after
+      worker cleanup. Cancel pauses scheduling; reconnect offers fetch retry.
+      Verified reconnection/cancellation and backup/cache/status preservation.
 
 ## Export coverage
-- [ ] add support for proper encoding. 
-      the characters encoding in the frontmatter has issues.
-      eg: title: "\u00c9ttermek" it should be Éttermek. 
+- [x] Preserve readable Unicode in frontmatter, e.g. `title: "Éttermek"`, while
+      escaping quotes and newlines. Verified UTF-8 disk output and repeat backup;
+      incremented the export version to refresh previously cached notes.
 - [x] by default do not download attachments. add an option to the method to do so, expose that to the UI.
 - [x] Preserve richer note formatting in Markdown. Verified converter behavior,
       provider integration, readable fallback, and export-version invalidation.
@@ -39,6 +39,12 @@ Backlog entries do not authorize work outside the current user request.
   successful local backup. Cover failures, skipped notes, and export-format changes.
 
 ## Major Refactor
+
+- [x] Refactor and polish `__main__.py`: separate parsing, runtime checks, and
+      one-shot backups; reuse application operations and guarantee demo/session
+      cleanup. Verified 152 logic tests, runtime check, and desktop smoke check.
+      Production backup/diagnostic commands remain as dedicated functions in
+      `__main__.py`; automated tests remain under `tests/`.
 
 - [x] Review the current architecture and refactor for clearer responsibilities,
       simpler control flow, and less duplication while preserving backup safety

@@ -50,8 +50,8 @@ def test_terminal_saved_login_verification_retry(tmp_path, monkeypatch):
     ui = terminal(tmp_path, auth)
     ui.app.store.save(ConfigModel(apple_id="synthetic@example.invalid"))
     codes = iter(["bad", "123456"])
-    monkeypatch.setattr("notesvault.tui.Prompt.ask", lambda *a, **kw: next(codes))
-    monkeypatch.setattr("notesvault.tui.Confirm.ask", lambda *a, **kw: True)
+    monkeypatch.setattr("notesvault.tui.tui.Prompt.ask", lambda *a, **kw: next(codes))
+    monkeypatch.setattr("notesvault.tui.tui.Confirm.ask", lambda *a, **kw: True)
     assert ui.login()
     assert calls == ["synthetic@example.invalid", "bad", "123456"]
     ui.tasks.close()
@@ -65,7 +65,7 @@ def test_terminal_cancel_clears_pending_auth(tmp_path, monkeypatch):
     ui.app.store.save(ConfigModel(apple_id="synthetic@example.invalid"))
     def interrupt(*args, **kwargs):
         raise KeyboardInterrupt()
-    monkeypatch.setattr("notesvault.tui.Prompt.ask", interrupt)
+    monkeypatch.setattr("notesvault.tui.tui.Prompt.ask", interrupt)
     with pytest.raises(KeyboardInterrupt):
         ui.login()
     assert calls == ["cancel", "clear"]
@@ -127,7 +127,7 @@ def test_terminal_saved_login_failure_uses_masked_password(tmp_path, monkeypatch
             assert kwargs["password"] is True
             return "synthetic-password"
         return "synthetic@example.invalid"
-    monkeypatch.setattr("notesvault.tui.Prompt.ask", prompt)
+    monkeypatch.setattr("notesvault.tui.tui.Prompt.ask", prompt)
     assert ui.login()
     assert calls == [("synthetic@example.invalid", ""), ("synthetic@example.invalid", "synthetic-password")]
     assert "synthetic-password" not in ui.console.file.getvalue()
@@ -167,7 +167,7 @@ def test_cancelled_reconnection_resets_terminal_schedule(tmp_path, monkeypatch):
     @contextmanager
     def keyboard():
         yield lambda: next(keys)
-    monkeypatch.setattr("notesvault.tui.keyboard", keyboard)
+    monkeypatch.setattr("notesvault.tui.tui.keyboard", keyboard)
     monkeypatch.setattr(ui, "setup", lambda: next(attempts))
     monkeypatch.setattr(ui, "schedule", lambda: schedules.append("scheduled"))
     ui.run()

@@ -9,7 +9,7 @@ from .models import AppError, ExportedNoteModel
 
 # Invalidates cached exports even when the iCloud cursor is unchanged.
 # Increment whenever export content or supported content changes.
-EXPORT_VERSION = 3
+EXPORT_VERSION = 4
 MAX_EXPORT_BYTES = 64 * 1024 * 1024
 
 
@@ -72,6 +72,6 @@ def render_export(note_id: str, title: str, text: str,
                 "folder_id": folder_id, "modified_at": modified,
                 "format": format_description}
     # JSON-quoted scalars are valid YAML and safely escape metadata characters.
-    frontmatter = "\n".join(f"{key}: {json.dumps(value)}" for key, value in sorted(metadata.items()))
+    frontmatter = "\n".join(f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in sorted(metadata.items()))
     files[base + ".md"] = (f"---\n{frontmatter}\n---\n\n" + body.rstrip() + "\n").encode("utf-8")
     return ExportedNoteModel(note_id, files)

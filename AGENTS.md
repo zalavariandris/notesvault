@@ -38,6 +38,9 @@ saved credentials, password/verification fallback, then backup dashboard. Its
 forms use terminal prompts; `--demo --tui` uses synthetic data. It supports
 settings, login/logout, scheduling while idle, bounded/searchable logs, and safe
 fetch pause/resume/cancel/exit. Use one interface per settings directory at a time.
+Sign-in errors allow retries. Authentication failures during fetch invalidate the
+in-memory session and return the TUI to sign-in after worker/terminal cleanup;
+cancelled reconnection leaves scheduling paused. Network failures allow fetch retry.
 
 1. Connect iCloud with Apple Account email and password, including code-based
    two-factor authentication when required. Store passwords in the OS credential store.
@@ -96,13 +99,17 @@ an already-started local save finishes. An in-flight request must return first.
   `.venv/Scripts/python.exe -m notesvault --check` with uv and Git on PATH.
 - Current exports preserve supported rich text and metadata in Markdown with YAML
   frontmatter, plus optional downloadable attachments (disabled by default).
+  Frontmatter preserves readable UTF-8 metadata with escaped quotes and newlines.
   Per-note JSON sidecars are no longer written. Complex formatting can lose
   fidelity; plain-text fallback is reported. Locked notes and separate shared zones
   are unsupported. The fixed Notes-zone adapter retains unconfirmed absences;
   only explicit tombstones from complete, unskipped fetches permit deletions.
 - Scheduling runs while the chosen GUI/TUI dashboard is open; `--once` supports external schedulers.
 - `application.py` shares setup prerequisites, configuration operations and provider
-  selection between GUI and TUI. UI adapters own forms and event loops; controllers
+  selection between GUI, TUI, and one-shot backups. `__main__.py` owns argument
+  parsing, interface launch, dispatch, and demo cleanup, with dedicated functions
+  for production `--once` backups and `--check` installation diagnostics.
+  UI adapters own forms and event loops; controllers
   and task/fetch logic must not import Qt or Rich. `tui.py` renders with Rich and
   delegates fetches to TaskManager. `scripts/smoke_desktop.py` is an opt-in smoke
   check outside the Qt-free automated logic suite.

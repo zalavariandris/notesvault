@@ -17,6 +17,7 @@ from ..application import Application
 from ..backup_status_store import BackupStatusStore
 from ..fetch_control import FetchCancelled, FetchControl
 from ..models import AppError
+from ..icloud_errors import ReconnectRequired
 from ..task_manager import TaskManager
 
 
@@ -92,20 +93,20 @@ class TerminalUI:
                 except AppError as exc:
                     self.report(exc)
 
-            while needs_password:
-                self.console.print("Connect iCloud (Ctrl+C cancels)")
-                account = Prompt.ask("Apple Account email", default=account, console=self.console)
-                password = Prompt.ask("Password", password=True, console=self.console)
-                try:
-                    with self.console.status("Signing in..."):
-                        ready = auth.login(account, password)
-                    needs_password = False
-                except AppError as exc:
-                    self.report(exc)
-                finally:
-                    password = ""
-
             while not ready:
+                if needs_password:
+                    self.console.print("Connect iCloud (Ctrl+C cancels)")
+                    account = Prompt.ask("Apple Account email", default=account, console=self.console)
+                    password = Prompt.ask("Password", password=True, console=self.console)
+                    try:
+                        with self.console.status("Signing in..."):
+                            ready = auth.login(account, password)
+                        needs_password = False
+                    except AppError as exc:
+                        self.report(exc)
+                    finally:
+                        password = ""
+                    continue
                 code = Prompt.ask("Verification code (Ctrl+C cancels)", console=self.console)
                 try:
                     with self.console.status("Verifying..."):
@@ -113,7 +114,10 @@ class TerminalUI:
                     ready = True
                 except AppError as exc:
                     self.report(exc)
-                    if not Confirm.ask("Retry verification?", default=True, console=self.console):
+                    needs_password = (isinstance(exc, ReconnectRequired)
+                                      or not getattr(auth, "awaiting_verification", True))
+                    prompt = "Sign in again?" if needs_password else "Retry verification?"
+                    if not Confirm.ask(prompt, default=True, console=self.console):
                         return False
                 finally:
                     code = ""
@@ -261,6 +265,20 @@ class TerminalUI:
                     self.schedule()
                 except EOFError:
                     break
+                except ReconnectRequired as exc:
+                    self.report(exc)
+                    self.next_fetch = None
+                    if not self.quitting:
+                        try:
+                            if self.login():
+                                self.log("Reconnected. Press F to retry the fetch.")
+                        except KeyboardInterrupt:
+                            self.log("Reconnection cancelled. Press L to sign in or F to retry.")
+                        except EOFError:
+                            break
+                        except Exception as login_exc:
+                            self.report(login_exc)
+                    self.schedule()
                 except Exception as exc:
                     self.report(exc)
                     self.schedule()
@@ -269,7 +287,4 @@ class TerminalUI:
             self.app.authentication.clear()
 
 
-def run_tui(store, *, is_demo=False):
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        raise AppError("--tui requires an interactive terminal. Use --once for noninteractive backups.")
-    TerminalUI(Application(store, is_demo=is_demo)).run()
+

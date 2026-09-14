@@ -50,6 +50,11 @@ The default desktop app does not use terminal authentication prompts.
 `application.py` shares configuration validation, fetch prerequisites, and provider
 selection between desktop and terminal adapters. The TUI imports no Qt modules;
 both interfaces reuse the authentication, backup, disk, and task controllers.
+One-shot backups also use the shared application service. The entry point handles
+startup and routing, with automatic demo cleanup. Functions in `__main__.py` implement
+`--once` backups for external schedulers and `--check` installation diagnostics.
+`--check` identifies the failing dependency check; local file-access errors produce
+a safe message and a nonzero exit status.
 
 Providers retrieve notes and convert their formatting; `provider_utils.py` builds
 export bytes without writing Markdown files. `BackupController` owns the fetch/save
@@ -149,6 +154,11 @@ when needed, then show the backup dashboard. Setup failures can be retried;
 Ctrl+C cancels setup while retaining saved steps. Credentials use the same OS
 store as the desktop. Use one interface at a time with a given settings directory.
 
+Failed sign-ins show actionable errors and allow another attempt. If a fetch
+requires authentication again, the TUI pauses scheduling and opens sign-in after
+the worker finishes. Reconnect, then press **F** to retry; Ctrl+C cancels sign-in
+and leaves fetching paused. Network failures retain the connection for retry.
+
 Press **F** to fetch/retry, **S** for folder/interval/attachment settings, **L** to
 connect, **D** to disconnect, **H** to search the latest 200 logs, **X** to clear
 logs, or **Q** to quit. During a fetch, **P** pauses, **R** resumes, **C** cancels,
@@ -174,6 +184,9 @@ implementation plan and review.
   UTC. Folder names include stable hashes; nested folder hierarchy is flattened.
   Existing managed JSON sidecars are removed when their notes are re-exported;
   earlier versions remain in Git history. The internal backup manifest stays JSON.
+  Frontmatter uses readable UTF-8 characters (for example, `Éttermek`) while
+  escaping quotes and newlines. The next fetch refreshes cached exports to apply
+  this format automatically; earlier versions remain in local Git history.
 - Changes are committed locally. Local edits and incomplete fetches block destructive
   replacement; skipped notes defer deletions.
 - Browse earlier versions with `git log --all -- notes` and

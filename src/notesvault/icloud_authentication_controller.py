@@ -2,6 +2,7 @@
 from dataclasses import replace
 
 from .models import AppError
+from .icloud_errors import ReconnectRequired, login_error
 from .provider_utils import stable_id
 from .config_store import ConfigStoreController
 from .icloud_secret_store import SecretStoreController
@@ -23,9 +24,13 @@ class ICloudAuthenticationController:
                 and not self._api.requires_2fa and not self._api.requires_2sa)
 
     @property
+    def awaiting_verification(self) -> bool:
+        return self._api is not None and self._password is not None
+
+    @property
     def session(self):
         if not self.connected:
-            raise AppError("Reconnect iCloud before fetching.")
+            raise ReconnectRequired("Reconnect iCloud before fetching.")
         return self._api
 
     def login(self, account: str, password: str = "", *, interactive=True) -> bool:
@@ -67,7 +72,7 @@ class ICloudAuthenticationController:
             raise
         except Exception as exc:
             self.clear()
-            raise exc
+            raise login_error(exc) from exc
 
     def login_saved(self) -> None:
         """Reconnect for --once without requesting a verification code or prompting."""
@@ -90,7 +95,8 @@ class ICloudAuthenticationController:
         except AppError:
             raise
         except Exception as exc:
-            raise AppError("Could not verify iCloud. Reconnect and request a new code.") from exc
+            self.clear()
+            raise ReconnectRequired("Could not verify iCloud. Sign in again to request a new code.") from exc
         self._save()
 
     def _save(self):

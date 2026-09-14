@@ -11,6 +11,7 @@ from .disk_vault_controller import DiskVaultController
 from .icloud_authentication_controller import ICloudAuthenticationController
 from .icloud_notes_provider import ICloudNotesProvider
 from .icloud_secret_store import SecretStoreController
+from .icloud_errors import ReconnectRequired
 
 
 class Application:
@@ -36,6 +37,10 @@ class Application:
 
     def fetch(self, progress, control):
         control.checkpoint()
-        provider = (DemoProvider() if self.is_demo else
-                    ICloudNotesProvider(self.authentication.session, self.authentication.account))
-        return fetch_backup(self.store, provider, progress, control=control)
+        try:
+            provider = (DemoProvider() if self.is_demo else
+                        ICloudNotesProvider(self.authentication.session, self.authentication.account))
+            return fetch_backup(self.store, provider, progress, control=control)
+        except ReconnectRequired:
+            self.authentication.clear()
+            raise
