@@ -17,7 +17,7 @@ def test_application_uses_default_per_user_settings(tmp_path, monkeypatch):
     app = Application()
     assert app.store.directory == directory
     assert app.store.load() == settings
-    assert app.authentication.store is app.store
+    assert app.authentication.config is app.store
 
 
 def test_new_settings_ignore_retired_environment_defaults(tmp_path, monkeypatch):

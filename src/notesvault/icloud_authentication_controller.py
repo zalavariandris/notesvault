@@ -2,6 +2,7 @@
 from dataclasses import replace
 
 from pyicloud.exceptions import PyiCloudAcceptTermsException
+from rich.console import Console
 
 from .models import AppError
 from .icloud_errors import ReconnectRequired, login_error
@@ -11,10 +12,10 @@ from .icloud_secret_store import SecretStoreController
 
 
 class ICloudAuthenticationController:
-    def __init__(self, store: ConfigStoreController, secrets: SecretStoreController):
-        self.store = store
+    def __init__(self, config: ConfigStoreController, secrets: SecretStoreController):
+        self.config = config
         self.secrets = secrets
-        self.session_directory = store.directory / "sessions"
+        self.session_directory = config.directory / "sessions"
         self.account = ""
         self._api = None
         self._password = None
@@ -45,7 +46,7 @@ class ICloudAuthenticationController:
         password = password or self.secrets.get(f"icloud:{account}")
         if not password:
             raise AppError("Enter your iCloud password.")
-        previous = self.account or self.store.load().apple_id
+        previous = self.account or self.config.load().apple_id
         if previous and previous != account:
             self._close_session(previous)
         self.clear()
@@ -78,7 +79,7 @@ class ICloudAuthenticationController:
 
     def login_saved(self) -> None:
         """Reconnect for --once without requesting a verification code or prompting."""
-        account = self.store.load().apple_id
+        account = self.config.load().apple_id
         if not account:
             raise AppError("Open the desktop or --tui to connect iCloud and choose a backup folder.")
         if not self.login(account, interactive=False):
@@ -106,9 +107,9 @@ class ICloudAuthenticationController:
 
     def _save(self):
         try:
-            settings = self.store.load()
+            settings = self.config.load()
             self.secrets.set(f"icloud:{self.account}", self._password)
-            self.store.save(replace(settings, apple_id=self.account))
+            self.config.save(replace(settings, apple_id=self.account))
             if settings.apple_id and settings.apple_id != self.account:
                 self.secrets.delete(f"icloud:{settings.apple_id}")
             self._ready = True
@@ -138,11 +139,11 @@ class ICloudAuthenticationController:
             self.clear()
 
     def logout(self) -> None:
-        settings = self.store.load()
+        settings = self.config.load()
         self._close_session(self.account or settings.apple_id)
         if settings.apple_id:
             self.secrets.delete(f"icloud:{settings.apple_id}")
-        self.store.save(replace(settings, apple_id=""))
+        self.config.save(replace(settings, apple_id=""))
         self.account = ""
 
     def cancel(self) -> None:
@@ -154,3 +155,24 @@ class ICloudAuthenticationController:
         self._password = None
         self._api = None
         self._ready = False
+
+if __name__ == "__main__":
+    from rich.console import Console
+    from rich.prompt import Confirm, Prompt
+    from rich.text import Text
+    config = ConfigStoreController()
+    secret = SecretStoreController()
+
+    console = Console()
+    settings = config.load()
+    secret.load()
+    
+    loggedin = False
+    while not loggedin:
+        account = settings.apple_id or ""
+        account = Prompt.ask("Apple Account email", default=account, console=console)
+        config.save(replace(settings, apple_id=account))
+
+    loggedin = False
+    while not loggedin:
+        password = Prompt.ask("Password", password=True, console=console)
