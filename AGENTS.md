@@ -30,17 +30,26 @@ This is a one-way backup; two-way synchronization is outside the current scope.
 Launch opens a tall, scrolling PyEdifice dashboard. Login uses saved credentials or
 opens a focused sign-in and verification popup. Fetch prompts for a missing backup folder
 and resumes after prerequisites are completed. Account and backup-folder forms stay in
-the GUI by default; `--tui` selects a separate Rich terminal adapter. Checks and `--once` remain
+the GUI by default; `--tui` selects the interactive command line. Checks and `--once` remain
 noninteractive. Cancel clears pending credentials while preserving saved steps.
 
-The Rich TUI follows [docs/ux_flow.excalidraw](docs/ux_flow.excalidraw): folder setup,
-saved credentials, password/verification fallback, then backup dashboard. Its
-forms use terminal prompts; `--demo --tui` uses synthetic data. It supports
-settings, login/logout, scheduling while idle, bounded/searchable logs, and safe
-fetch pause/resume/cancel/exit. Use one interface per settings directory at a time.
-Sign-in errors allow retries. Authentication failures during fetch invalidate the
-in-memory session and return the TUI to sign-in after worker/terminal cleanup;
-cancelled reconnection leaves scheduling paused. Network failures allow fetch retry.
+The terminal adapter is a prompt-based command line, launched by `--tui` or
+`launcher_tui.py`. Prepare the saved backup folder or ask for one first, then try
+saved credentials and prompt for missing credentials or verification. Preserve
+folder setup if sign-in is cancelled or fails. Print the folder,
+managed Markdown note count on disk, last result, and interval. Ask whether to fetch
+now using line input (yes/no/settings/quit and Enter), with a countdown to the next
+automatic fetch on that prompt line. No panels, Live displays, or dashboard hotkeys.
+Declining keeps the existing deadline; interval 0 disables automatic fetches.
+Settings/authentication pause scheduling. Print progress/results to scrollback.
+Ctrl+C requests safe fetch cancellation and exits after worker cleanup or protected
+local saves. Authentication failures return to sign-in after cleanup; cancelled
+reconnection leaves scheduling paused. Network failures allow fetch retry.
+Apple's terms-required response stops credential retries and directs the user to
+iCloud.com, then yes to retry sign-in; never accept terms automatically.
+`python -m devtools.demo --tui` supplies synthetic dependencies from a source checkout.
+Use one interface per settings directory at a time. The old terminal dashboard
+flow in docs/ux_flow.excalidraw and INTERFACE_PLAN.md is historical.
 
 1. Connect iCloud with Apple Account email and password, including code-based
    two-factor authentication when required. Store passwords in the OS credential store.
@@ -80,20 +89,22 @@ an already-started local save finishes. An in-flight request must return first.
 
 ## Credentials
 
-- Ignore `.env`; keep `.env.example` free of secrets. Never commit credentials
-  or sessions to either repository. Prefer the OS credential store in the app.
+- `.env` and environment-based account/folder defaults are not supported. Keep
+  `.env` files ignored. Never commit credentials or sessions to either repository.
+  Use the OS credential store in the app.
 - Keep real notes out of application source control, logs, screenshots, and tests.
   Use synthetic test data.
 
 ## Development
 - Python 3.12+, PyEdifice dashboard, PyiCloud 2.7.0 Notes adapter, and system Git.
-- Run `.venv/Scripts/python.exe -m pytest`; try `--demo` for synthetic data.
+- Run `.venv/Scripts/python.exe -m pytest`; use `python -m devtools.demo` for synthetic data.
 - Keep automated tests focused on logic, without Qt widgets or GUI interaction
   tests. Use a synthetic demo smoke check for desktop changes. Packaging uses
   PySide6 Qt hooks.
 - See README.md for setup, exports, limitations, and Windows executable builds.
-- `notesvault.spec` builds the desktop-default executable; `notesvault-tui.spec`
-  uses `launcher_tui.py` to build `dist/notesvault-tui.exe` with a console and TUI
+- `notesvault-gui.spec` uses `launcher_gui.py` to build `dist/notesvault-gui.exe`;
+  `notesvault-tui.spec`
+  uses `launcher_tui.py` to build `dist/notesvault-tui.exe` with a console and command-line
   default. Both retain explicit `--once` and `--check` modes.
 - On Windows, use `uv sync --extra dev` and
   `.venv/Scripts/python.exe -m notesvault --check` with uv and Git on PATH.
@@ -104,13 +115,19 @@ an already-started local save finishes. An in-flight request must return first.
   fidelity; plain-text fallback is reported. Locked notes and separate shared zones
   are unsupported. The fixed Notes-zone adapter retains unconfirmed absences;
   only explicit tombstones from complete, unskipped fetches permit deletions.
-- Scheduling runs while the chosen GUI/TUI dashboard is open; `--once` supports external schedulers.
+- Scheduling runs while the GUI or command-line process is open; `--once` supports external schedulers.
 - `application.py` shares setup prerequisites, configuration operations and provider
-  selection between GUI, TUI, and one-shot backups. `__main__.py` owns argument
-  parsing, interface launch, dispatch, and demo cleanup, with dedicated functions
-  for production `--once` backups and `--check` installation diagnostics.
+  construction between GUI, command line, and one-shot backups. `Application()` owns default
+  per-user settings and real iCloud dependencies; explicit dependency injection is
+  available to tests. Both interfaces receive an Application, with no demo flags.
+  In `__main__.py`, `cli()` parses arguments and feeds the typed `main(mode)`, which
+  dispatches to GUI, command line, production `--once` backups, or `--check` installation
+  diagnostics. Launchers and the console entry point call `cli()`. There are no settings-path
+  or demo arguments. `devtools` owns synthetic authentication, notes, and temporary
+  settings/backup cleanup outside the installed package; `python -m devtools.demo`
+  launches manual checks with optional `--tui` or `--once`.
   UI adapters own forms and event loops; controllers
-  and task/fetch logic must not import Qt or Rich. `tui.py` renders with Rich and
+  and task/fetch logic must not import Qt or Rich. `terminal.py` provides plain Rich prompts and timed input, and
   delegates fetches to TaskManager. `scripts/smoke_desktop.py` is an opt-in smoke
   check outside the Qt-free automated logic suite.
 - Separate authentication, retrieval, export, backup workflows, and desktop UI.

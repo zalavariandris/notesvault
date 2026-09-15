@@ -6,6 +6,50 @@ Outstanding work is tracked in [todo.md](todo.md).
 
 ## Unreleased
 
+- Replaced the Rich terminal dashboard with a prompt-based command line in
+  `terminal.py`. Startup prepares the backup folder first, then tries saved
+  credentials and prompts only as needed. It prints the folder, managed notes on disk,
+  last result, and interval. Yes fetches now; no waits without resetting the timer.
+  The prompt shows a countdown and starts scheduled fetches automatically.
+- Terminal progress and results stay in scrollback. Settings use ordinary prompts;
+  Ctrl+C cancels and exits after worker cleanup or a protected local save. Removed
+  terminal panels, log widgets, and pause/resume hotkeys. Existing `--tui` and
+  launcher/executable names open this CLI; settings and backups need no migration.
+- Verified 176 logic tests and 32 affected tests after moving folder setup before
+  login, plus a Windows synthetic terminal check for fetch/repeat/settings/timer,
+  automatic fetching, and quit. The wheel includes the new terminal adapter.
+
+- Distinguish Apple's terms-acceptance requirement from retryable sign-in errors.
+  The command line now pauses with browser instructions and a retry prompt,
+  instead of repeatedly requesting credentials. Preserve the specific terms error
+  during verification and clear pending credentials. Saved settings/passwords remain
+  intact; no migration is required. Browser acceptance and live sign-in still need
+  user verification. Verified 38 authentication and interface tests, including
+  terms failures during saved login, password submission, and verification.
+
+- Simplified startup to mode selection only; GUI, TUI, and one-shot backups use
+  the default per-user settings directory. `cli()` parses arguments and calls the
+  typed `main(mode)` dispatcher. Removed `--data-dir`; users of custom
+  settings directories must copy settings/status/sessions into the default location
+  as described in README. Backup repositories and OS credentials stay in place.
+- Removed demo flags and synthetic imports from production workflows and GUI
+  controls. `python -m devtools.demo [--tui | --once]` now supplies synthetic
+  authentication and notes to the normal application from a source checkout,
+  with temporary settings and backups cleaned up on exit. It replaces `--demo`
+  and is excluded from installed builds. `main()` retains match-based mode routing.
+- Repaired the GUI spec's reference to `launcher_gui.py` and the terminal launcher's
+  mode dispatch, retaining `--once` and `--check` for both launchers. The installed
+  console entry point now calls `cli()`; rerun `uv sync --extra dev` in source checkouts.
+- Verified the 164-test logic suite and 31 CLI/development tests after the typed
+  entry-point split, synthetic desktop authentication/fetch/repeat/logout, runtime
+  diagnostics, the installed entry point, and a wheel build excluding development
+  code. Packaged executable and live-account checks remain in `todo.md`.
+
+- Removed `.env` loading, environment-based account/folder defaults, and the
+  `python-dotenv` dependency. Configure the account and backup folder through the
+  GUI or TUI if previously supplied only by `ICLOUD_APPLE_ID` or `LOCAL_EXPORT_DIR`.
+  Existing saved settings and OS credentials need no migration.
+
 - Refactored `__main__.py` into argument parsing, runtime checks, and one-shot
   execution, with a smaller launch dispatcher and context-managed demo cleanup.
   Production command helpers stay in `__main__.py`; automated tests live under `tests/`.

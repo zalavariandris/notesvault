@@ -6,7 +6,6 @@ import edifice as ed
 
 from ..application import Application
 from ..backup_status_store import BackupStatusStore
-from ..config_store import ConfigStoreController
 from ..activity_log import append_entry
 from .cards import AccountCard, BackupCard, TaskCard, LogCard
 from .components import Text
@@ -15,8 +14,8 @@ from .tasks import use_tasks
 
 
 @ed.component
-def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
-    application = ed.use_memo(lambda: Application(config_store, is_demo=is_demo), ())
+def Dashboard(self, application: Application):
+    config_store = application.store
     authentication = application.authentication
     window_ref = ed.use_ref()
 
@@ -33,7 +32,7 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
     busy = bool(active_task)
 
     # Authentication state. Credentials live only in the form and controller.
-    connected, set_connected = ed.use_state(is_demo or authentication.connected)
+    connected, set_connected = ed.use_state(authentication.connected)
     auth_step, set_auth_step = ed.use_state("idle")
 
     # Disk drafts are distinct from the last successful save.
@@ -78,14 +77,14 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
             log_output("iCloud connected." if ready else "iCloud verification required.")
             set_resume_fetch(True)
 
-        if is_demo or not start_task("Signing in to iCloud", operation, completed,
+        if not start_task("Signing in to iCloud", operation, completed,
                                      lambda message: authentication_failed(message, "login")):
             return False
         task_started()
         return True
 
     def connect():
-        if task_is_running() or is_demo:
+        if task_is_running():
             return False
         if config.apple_id:
             return login(config.apple_id, "")
@@ -124,7 +123,7 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
             set_pending_fetch(False)
             log_output("Disconnected. Local backups and Git history are preserved.")
 
-        if is_demo or not start_task("Disconnecting iCloud", operation, completed,
+        if not start_task("Disconnecting iCloud", operation, completed,
                                      lambda message: authentication_failed(message, "idle")):
             return False
         task_started()
@@ -132,7 +131,7 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
 
     def cancel_setup():
         def completed(_):
-            set_connected(is_demo or authentication.connected)
+            set_connected(authentication.connected)
             set_auth_step("idle")
             set_folder_requested(False)
             set_pending_fetch(False)
@@ -185,7 +184,7 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
             set_folder_requested(True)
             # Also prepares a saved folder whose repository has not been initialized.
             return save_settings(fetch_after=True) if config.backup_folder else True
-        if not (is_demo or authentication.connected):
+        if not authentication.connected:
             set_connected(False)
             set_pending_fetch(True)
             return connect()
@@ -196,19 +195,19 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
         def completed(result):
             status, backup = result
             set_backup_status(status)
-            set_connected(is_demo or authentication.connected)
+            set_connected(authentication.connected)
             for message in backup.warnings or ["Backup complete. Your local history is up to date."]:
                 log_output(message)
 
         def failed(message):
             set_fetch_failed(True)
             set_error(message)
-            set_connected(is_demo or authentication.connected)
+            set_connected(authentication.connected)
 
         def cancelled():
             set_pending_fetch(False)
             set_resume_fetch(False)
-            set_connected(is_demo or authentication.connected)
+            set_connected(authentication.connected)
 
         if not start_task("Fetching iCloud notes", operation, completed, failed,
                           cancellable=True, on_cancel=cancelled):
@@ -257,7 +256,6 @@ def Dashboard(self, config_store: ConfigStoreController, is_demo=False):
             AccountCard(
                 account=config.apple_id, 
                 connected=connected, 
-                is_demo=is_demo,
                 enabled=not busy and not setup_open, 
                 on_connect=connect, 
                 on_logout=logout)

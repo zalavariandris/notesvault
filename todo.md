@@ -4,9 +4,19 @@ Track outstanding work here. Check off items only when implementation and releva
 verification are complete. Completed changes belong in [changelog.md](changelog.md).
 Backlog entries do not authorize work outside the current user request.
 
-# TUI userflow
+# Command-line user flow
+- [x] Replace the terminal dashboard with ordinary prompts: folder setup before
+      saved-login/password/verification, disk note count and results, fetch-now
+      question, automatic-fetch countdown, scrolling progress, and safe Ctrl+C exit.
+      Verified 176 logic tests plus 32 affected tests after the final startup-order
+      change; Windows synthetic terminal fetch/repeat/settings/countdown/automatic
+      fetch/quit and wheel contents/build also passed.
+
 - [x] Report helpful iCloud sign-in errors and allow retries, including restarting
       failed verification sessions. Verified with synthetic controller/TUI tests.
+      Terms-required errors now stop credential retries, preserve saved steps, and
+      guide browser acceptance before answering yes to retry. Verified 38 authentication and
+      interface tests, including saved-login, password, and verification failures.
 - [x] Handle credential/session failures during fetch by returning to sign-in after
       worker cleanup. Cancel pauses scheduling; reconnect offers fetch retry.
       Verified reconnection/cancellation and backup/cache/status preservation.
@@ -40,11 +50,21 @@ Backlog entries do not authorize work outside the current user request.
 
 ## Major Refactor
 
+- [x] Remove `.env` loading and environment-based account/folder defaults; use
+      saved settings and GUI/TUI setup. Removed the dependency and verified
+      153 logic tests and lockfile consistency.
+
 - [x] Refactor and polish `__main__.py`: separate parsing, runtime checks, and
       one-shot backups; reuse application operations and guarantee demo/session
       cleanup. Verified 152 logic tests, runtime check, and desktop smoke check.
       Production backup/diagnostic commands remain as dedicated functions in
       `__main__.py`; automated tests remain under `tests/`.
+      Follow-up: `cli()` feeds a typed `main(mode)` dispatcher. Both interfaces
+      use default per-user settings; synthetic dependencies and temporary storage
+      live in `devtools`, with no production demo flags or settings-path arguments.
+      Verified the 164-test logic suite, 31 CLI/development tests after the final
+      entry-point split, desktop authentication/fetch/repeat/logout smoke, runtime
+      diagnostics, installed console entry point, and wheel contents/build.
 
 - [x] Review the current architecture and refactor for clearer responsibilities,
       simpler control flow, and less duplication while preserving backup safety
@@ -90,13 +110,21 @@ authentication smoke checks. See [changelog.md](changelog.md) for details.
 
 ## Manual verification
 
-- [ ] Verify the Rich TUI on Linux/macOS terminals and the packaged Windows
+- [ ] Restore argument parsing in the dedicated launchers before verifying their
+      packaged `--once` and `--check` modes. They currently call `main(mode=...)`
+      directly; `python -m notesvault` and the installed `notesvault` entry point
+      still parse those flags.
+
+- [ ] Verify the prompt-based command line on Linux/macOS terminals and the packaged Windows
       executable. Source-level Windows terminal and synthetic checks are covered
       by the interface implementation; packaged and other-platform checks remain.
 
 - [ ] Verify sign-in, code-based 2FA, session expiry/reconnection, and fetching with
       a live iCloud account, including pause/resume and cancellation during downloads.
       Current checks use synthetic data and sessions.
+      Current blocker: PyiCloud reports Apple's terms-acceptance requirement.
+      Verify browser sign-in/terms acceptance, then retry login; successful live
+      authentication has not been confirmed. Do not record account details here.
 
 ## Fetch controls
 

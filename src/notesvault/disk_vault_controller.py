@@ -149,6 +149,14 @@ class DiskVaultController:
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             raise AppError("The backup manifest is invalid. Restore it from Git history before fetching.") from exc
 
+    def count_notes(self) -> int:
+        """Count managed notes with a Markdown export still present on disk."""
+        return sum(
+            any(name.startswith("notes/") and PurePosixPath(name).suffix.lower() == ".md"
+                and self.path(name).is_file() for name in files)
+            for files in self.read_manifest()["notes"].values()
+        )
+
     def _validate_existing(self, account: str) -> dict:
         """Reject unsafe repository state before planning any changes."""
         old = self.read_manifest()

@@ -10,6 +10,10 @@ class ReconnectRequired(AppError):
     """The active iCloud session can no longer fetch notes."""
 
 
+class TermsAcceptanceRequired(AppError):
+    """Apple requires an account action before another sign-in can succeed."""
+
+
 def authentication_required(exc):
     if isinstance(exc, (NotesAuthError, cloud.PyiCloudFailedLoginException,
                         cloud.PyiCloudAuthRequiredException, cloud.PyiCloud2FARequiredException,
@@ -22,7 +26,10 @@ def authentication_required(exc):
 
 def login_error(exc):
     if isinstance(exc, cloud.PyiCloudAcceptTermsException):
-        return AppError("Sign in at iCloud.com and accept Apple's updated terms, then try again.")
+        return TermsAcceptanceRequired(
+            "Apple reports that updated iCloud terms need your acceptance. "
+            "Open https://www.icloud.com in a browser, sign in with the same Apple Account, "
+            "and review the updated terms. After accepting them, return here and sign in again.")
     if isinstance(exc, cloud.PyiCloudServiceNotActivatedException):
         return AppError("Enable iCloud Notes and access Notes at iCloud.com, then try again.")
     if isinstance(exc, (ConnectionError, Timeout)):

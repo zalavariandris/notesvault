@@ -8,13 +8,12 @@ from .folderinput import FolderInput
 
 
 @ed.component
-def AccountCard(self, account, connected, is_demo, enabled, on_connect, on_logout):
-    with Card("iCloud", "Demo account" if is_demo else "Connected" if connected else "Sign in to start backing up"):
+def AccountCard(self, account, connected, enabled, on_connect, on_logout):
+    with Card("iCloud", "Connected" if connected else "Sign in to start backing up"):
         if account:
             Text(account)
-        if not is_demo:
-            Action("Disconnect iCloud" if connected else "Login",
-                   lambda _: on_logout() if connected else on_connect(), enabled=enabled)
+        Action("Disconnect iCloud" if connected else "Login",
+               lambda _: on_logout() if connected else on_connect(), enabled=enabled)
 
 
 @ed.component

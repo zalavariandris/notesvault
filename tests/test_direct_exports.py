@@ -76,7 +76,7 @@ def test_memory_limit_aborts_before_vault_or_cache_changes(tmp_path, monkeypatch
 
 
 def test_markdown_is_only_written_after_save_boundary(tmp_path, monkeypatch):
-    from notesvault.demo_provider import DemoProvider
+    from devtools.synthetic import SyntheticNotesProvider
     from notesvault.fetch_control import FetchControl
     control = FetchControl()
     root = tmp_path / "backup"
@@ -91,7 +91,7 @@ def test_markdown_is_only_written_after_save_boundary(tmp_path, monkeypatch):
         return original(path, content)
 
     monkeypatch.setattr(Path, "write_bytes", write)
-    result = BackupController(root).run_backup(DemoProvider(), lambda _: None, control=control)
+    result = BackupController(root).run_backup(SyntheticNotesProvider(), lambda _: None, control=control)
     assert result.added == len(writes) == 3
 
 

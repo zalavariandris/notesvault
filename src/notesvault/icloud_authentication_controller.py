@@ -1,6 +1,8 @@
 ﻿"""Own iCloud authentication, saved credentials, and the active session."""
 from dataclasses import replace
 
+from pyicloud.exceptions import PyiCloudAcceptTermsException
+
 from .models import AppError
 from .icloud_errors import ReconnectRequired, login_error
 from .provider_utils import stable_id
@@ -94,6 +96,9 @@ class ICloudAuthenticationController:
             self._api.notes
         except AppError:
             raise
+        except PyiCloudAcceptTermsException as exc:
+            self.clear()
+            raise login_error(exc) from exc
         except Exception as exc:
             self.clear()
             raise ReconnectRequired("Could not verify iCloud. Sign in again to request a new code.") from exc

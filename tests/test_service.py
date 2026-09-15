@@ -1,14 +1,14 @@
 import pytest
 
 from notesvault.models import AppError, ConfigModel
-from notesvault.demo_provider import DemoProvider
+from devtools.synthetic import SyntheticNotesProvider
 from notesvault.backup_controller import BackupController
 
 
 def test_demo_backup_commits_locally_and_cleans_staging(tmp_path):
     from notesvault.disk_vault_controller import git
     settings = ConfigModel(backup_folder=str(tmp_path / "backup"))
-    result = BackupController(settings.backup_folder).run_backup(DemoProvider(), lambda _: None)
+    result = BackupController(settings.backup_folder).run_backup(SyntheticNotesProvider(), lambda _: None)
     assert result.added == 3
     assert git(tmp_path / "backup", "rev-parse", "--verify", "HEAD").returncode == 0
     assert not (tmp_path / "staging").exists()
@@ -22,7 +22,7 @@ def test_fetch_workflow_saves_status_without_changing_preferences(tmp_path):
     store = ConfigStoreController(tmp_path / "config")
     store.save(ConfigModel(apple_id="demo", backup_folder=str(tmp_path / "backup")))
     original = store.path.read_bytes()
-    status, result = fetch_backup(store, DemoProvider(), lambda _: None)
+    status, result = fetch_backup(store, SyntheticNotesProvider(), lambda _: None)
     assert result.added == 3
     assert BackupStatusStore(store.directory).load() == status
     assert store.path.read_bytes() == original
@@ -39,7 +39,7 @@ def test_status_write_failure_keeps_successful_backup(tmp_path, monkeypatch):
     def fail(*args):
         raise OSError("synthetic disk failure")
     monkeypatch.setattr(BackupStatusStore, "save", fail)
-    status, result = fetch_backup(store, DemoProvider(), lambda _: None)
+    status, result = fetch_backup(store, SyntheticNotesProvider(), lambda _: None)
     assert result.added == 3
     assert status.last_result == result.summary()
     assert any("status could not be saved" in message for message in result.warnings)
@@ -213,6 +213,6 @@ def test_cancel_during_local_save_finishes_commit_and_status(tmp_path, monkeypat
         assert not control.pause()
         return apply(vault, snapshot)
     monkeypatch.setattr(DiskVaultController, "apply", save)
-    status, result = fetch_backup(store, DemoProvider(), lambda _: None, control=control)
+    status, result = fetch_backup(store, SyntheticNotesProvider(), lambda _: None, control=control)
     assert result.added == 3
     assert BackupStatusStore(store.directory).load() == status

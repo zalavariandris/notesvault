@@ -1,5 +1,4 @@
 import json
-import os
 from dataclasses import asdict
 from pathlib import Path
 
@@ -18,10 +17,7 @@ class ConfigStoreController:
 
     def load(self) -> ConfigModel:
         if not self.path.exists():
-            return ConfigModel(
-                apple_id=os.getenv("ICLOUD_APPLE_ID", ""),
-                backup_folder=os.getenv("LOCAL_EXPORT_DIR", ""),
-            )
+            return ConfigModel()
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
             # Discard retired options while preserving existing local backups.

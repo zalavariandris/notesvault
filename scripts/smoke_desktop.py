@@ -5,8 +5,10 @@ Run: .venv/Scripts/python.exe scripts/smoke_desktop.py
 import asyncio
 import os
 from pathlib import Path
+import sys
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -16,36 +18,32 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication, QLineEdit, QPushButton, QScrollArea
 
 from notesvault.config_store import ConfigStoreController
+from notesvault.application import Application
+from notesvault.backup_status_store import BackupStatusStore
 from notesvault.gui.dashboard import Dashboard
+from notesvault.models import ConfigModel
+from devtools.synthetic import SyntheticAuthentication, SyntheticNotesProvider
 
 
-class SyntheticAuthentication:
-    connected = False
-    account = ""
-
-    def __init__(self, *args):
-        pass
-
+class VerificationAuthentication(SyntheticAuthentication):
     def login(self, account, password):
-        self.account = account
+        super().login(account, password)
+        self.connected = False
         return False
 
     def verify(self, code):
         assert code == "123456"
         self.connected = True
 
-    def clear(self):
-        self.connected = False
-
-    def cancel(self):
-        self.clear()
-
-
 def main():
     qt = QApplication.instance() or QApplication([])
     failures = []
-    with TemporaryDirectory() as temporary, patch("notesvault.application.ICloudAuthenticationController", SyntheticAuthentication):
-        app = ed.App(Dashboard(ConfigStoreController(Path(temporary))), qapplication=qt)
+    with TemporaryDirectory() as temporary:
+        store = ConfigStoreController(Path(temporary))
+        store.save(ConfigModel(backup_folder=str(store.directory / "backups"), interval_minutes=0))
+        application = Application(store, authentication=VerificationAuthentication(store),
+                                  provider_factory=SyntheticNotesProvider)
+        app = ed.App(Dashboard(application), qapplication=qt)
 
         def popup():
             return next((w for w in qt.topLevelWidgets() if w.windowTitle() == "Connect iCloud" and w.isVisible()), None)
@@ -92,6 +90,20 @@ def main():
                 await asyncio.sleep(0.4)
                 assert popup() is None, "Successful login must close popup"
                 assert button("Disconnect iCloud").isEnabled()
+                for expected in ("3 added", "0 added | 0 updated | 0 deleted | 0 skipped\nLocal Git: No changes"):
+                    click("Fetch now")
+                    for _ in range(100):
+                        await asyncio.sleep(0.1)
+                        if expected in BackupStatusStore(store.directory).load().last_result:
+                            break
+                    else:
+                        raise AssertionError(f"Backup did not finish: {expected}")
+                    await asyncio.sleep(0.2)
+                assert len(list((store.directory / "backups" / "notes").rglob("*.md"))) == 3
+                click("Disconnect iCloud")
+                await asyncio.sleep(0.4)
+                assert button("Login").isEnabled()
+                assert not application.connected
             except Exception as exc:
                 failures.append(exc)
             finally:
@@ -101,7 +113,7 @@ def main():
             loop.create_task(check())
     if failures:
         raise failures[0]
-    print("Desktop smoke passed: scroll container, popup, cancel, password, 2FA, successful closure.")
+    print("Desktop smoke passed: popup, cancel, password, 2FA, fetch, repeat backup, and logout.")
 
 
 if __name__ == "__main__":

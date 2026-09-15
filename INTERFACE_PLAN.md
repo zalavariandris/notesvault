@@ -1,5 +1,8 @@
 # Login repair and Rich terminal interface
 
+Historical implementation record. The terminal dashboard described here has been
+replaced by the prompt-based [command-line flow](README.md#interactive-command-line).
+
 1. Repair the desktop popup's placement within Edifice's single root. Smoke-check
    opening, verification, cancellation, and successful closure with synthetic sessions.
 2. Introduce a UI-independent application service for configuration, authentication,

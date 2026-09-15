@@ -1,55 +1,40 @@
-"""Launch the desktop, terminal dashboard, or noninteractive commands."""
+"""Launch the desktop, interactive command line, or noninteractive commands."""
 import argparse
 from collections.abc import Sequence
-from contextlib import nullcontext
 import logging
-from pathlib import Path
 import subprocess
-from tempfile import TemporaryDirectory
-
-from dotenv import load_dotenv
+import sys
+from typing import Literal
 
 from .application import Application
-from .config_store import ConfigStoreController
 from .fetch_control import FetchControl
 from .icloud_secret_store import SecretStoreController
-from .models import AppError, ConfigModel
+from .models import AppError
 
 
-def run_gui(config_store: ConfigStoreController, is_demo: bool = False) -> None:
+def run_gui(application: Application | None = None) -> None:
     """Import Qt only when launching the desktop."""
     from PySide6.QtWidgets import QApplication
     import edifice as ed
     from .gui.dashboard import Dashboard
 
-    application = QApplication.instance() or QApplication([])
-    ed.App(Dashboard(config_store, is_demo=is_demo), qapplication=application).start()
+    qt = QApplication.instance() or QApplication([])
+    ed.App(Dashboard(application or Application()), qapplication=qt).start()
 
-def run_tui(store, *, is_demo=False):
-    from .tui.tui import TerminalUI
-    import sys
+
+def run_tui(application: Application | None = None) -> None:
+    """Launch the prompt-based command line with interactive input and output."""
+    from .terminal import TerminalCLI
+
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         raise AppError("--tui requires an interactive terminal. Use --once for noninteractive backups.")
-    TerminalUI(Application(store, is_demo=is_demo)).run()
+    TerminalCLI(application or Application()).run()
 
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Back up iCloud Notes to local Git using the desktop or terminal dashboard."
-    )
-    parser.add_argument("--demo", action="store_true", help="Use synthetic notes in an isolated temporary directory")
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--once", action="store_true", help="Fetch once using saved settings and OS credentials")
-    mode.add_argument("--check", action="store_true", help="Check runtime dependencies without accessing an account")
-    mode.add_argument("--tui", action="store_true", help="Open the interactive Rich terminal dashboard")
-    parser.add_argument("--data-dir", type=Path, help="Override per-user configuration/session storage")
-    return parser.parse_args(argv)
-
-def run_once(store: ConfigStoreController, *, is_demo: bool = False) -> None:
+def run_once(application: Application | None = None) -> None:
     """Fetch with saved credentials and release the session on every exit path."""
-    application = Application(store, is_demo=is_demo)
+    application = application or Application()
     try:
-        if not is_demo:
-            application.authentication.login_saved()
+        application.authentication.login_saved()
         _, result = application.fetch(print, FetchControl())
         print(result.summary())
         for warning in result.warnings:
@@ -82,40 +67,51 @@ def check_runtime() -> None:
     print("Runtime imports OK: PyEdifice/Qt, PyiCloud Notes, and OS credential backend. No account accessed.")
 
 
-def main(argv: Sequence[str] | None = None, *, default_tui: bool = False) -> None:
-    """Keep explicit modes ahead of the executable's default interface."""
-    args = parse_args(argv)
+def main(mode: Literal["check", "once", "tui", "gui"] = "gui") -> None:
+    """Start the selected interface or command using default per-user settings."""
     # Third-party log messages may include note titles or authentication details.
     logging.disable(logging.CRITICAL)
     try:
-        if args.check:
-            check_runtime()
-            return
+        match mode:
+            case "check":
+                check_runtime()
+            case "once":
+                run_once()
+            case "tui":
+                run_tui()
+            case "gui":
+                run_gui()
+            case _:
+                raise ValueError(f"Unknown startup mode: {mode!r}")
 
-        load_dotenv(Path.cwd() / ".env", override=False)
-        directory_context = (TemporaryDirectory(prefix="apple-notes-demo-")
-                             if args.demo else nullcontext(args.data_dir))
-        with directory_context as directory:
-            store = ConfigStoreController(Path(directory) if directory is not None else None)
-            if args.demo:
-                store.save(ConfigModel(apple_id="demo", backup_folder=str(store.directory / "backups")))
-
-            if args.once:
-                run_once(store, is_demo=args.demo)
-            elif args.tui or default_tui:
-                run_tui(store, is_demo=args.demo)
-            else:
-                run_gui(store, is_demo=args.demo)
     except (KeyboardInterrupt, EOFError):
         print("Operation cancelled.")
         raise SystemExit(130) from None
+
     except AppError as exc:
         print(str(exc))
         raise SystemExit(1) from None
+
     except OSError:
         print("Could not access local files. Check folder permissions and available disk space, then retry.")
         raise SystemExit(1) from None
 
 
+def cli(argv: Sequence[str] | None = None, *, default_mode: Literal["gui", "tui"] = "gui") -> None:
+    """Translate command-line arguments into a startup mode."""
+    parser = argparse.ArgumentParser(
+        description="Back up iCloud Notes to local Git using the desktop or command line."
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--once", dest="mode", action="store_const", const="once",
+                      help="Fetch once using saved settings and OS credentials")
+    mode.add_argument("--check", dest="mode", action="store_const", const="check",
+                      help="Check runtime dependencies without accessing an account")
+    mode.add_argument("--tui", dest="mode", action="store_const", const="tui",
+                      help="Open the interactive command line")
+    parser.set_defaults(mode=default_mode)
+    main(parser.parse_args(argv).mode)
+
+
 if __name__ == "__main__":
-    main()
+    cli()

@@ -8,10 +8,8 @@ from typing import Callable
 from .fetch_cache import FetchCache
 from .backup_status_store import BackupStatusStore
 from .config_store import ConfigStoreController
-from .demo_provider import DemoProvider
 from .fetch_control import FetchControl
 from .disk_vault_controller import DiskVaultController
-from .icloud_notes_provider import ICloudNotesProvider
 from .models import BackupResultModel, BackupStatusModel
 
 
@@ -19,7 +17,7 @@ class BackupController:
     def __init__(self, folder: str | Path):
         self.vault = DiskVaultController(folder)
 
-    def run_backup(self, provider: ICloudNotesProvider | DemoProvider, progress: Callable[[str], None], *,
+    def run_backup(self, provider, progress: Callable[[str], None], *,
                    control: FetchControl | None = None,
                    download_attachments: bool = False) -> BackupResultModel:
         control = control or FetchControl()
